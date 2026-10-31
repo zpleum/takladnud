@@ -1,0 +1,17 @@
+{
+  "name": "classroom-project",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Classroom web project",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "multer": "^2.5.0",
+    "mysql2": "^3.14.1",
+    "qrcode": "^1.5.4"
+  }
+}

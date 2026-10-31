@@ -1,0 +1,135 @@
+﻿<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f6f2">
+  <meta name="description" content="จองแผงร้านค้าและสำรวจร้านในตากลาดนัด">
+  <title>ตากลาดนัด — ตลาดที่วางแผนได้</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/index.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#home" aria-label="ตากลาดนัด หน้าหลัก">
+      <span class="brand-mark" aria-hidden="true">ต</span>
+      <span><strong>ตากลาดนัด</strong><small>ตลาดที่วางแผนได้</small></span>
+    </a>
+    <nav class="top-nav" aria-label="เมนูหลัก">
+      <a class="nav-link active" href="#home" data-view="home"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg> ภาพรวม</a>
+      <a class="nav-link" href="#stalls" data-view="stalls"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg> จองแผง</a>
+      <a class="nav-link" href="#my-bookings" data-view="bookings"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h13v16H7zM4 7v13"/><path d="M10 8h7M10 12h7M10 16h5"/></svg> การจองของฉัน</a>
+      <a class="nav-link" href="#market-map" data-view="market"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg> แผนผังตลาด</a>
+      <a class="nav-link" href="#profile" data-view="profile">โปรไฟล์ร้าน</a>
+    </nav>
+    <div class="top-actions">
+      <span class="market-live"><i></i> เปิดรับจอง</span>
+      <button class="account-button" id="account-button" type="button" aria-label="เปิดเมนูบัญชี"><span class="avatar">ร</span><span class="account-copy"><b>ร้านของฉัน</b><small>บัญชีร้านค้า</small></span><span aria-hidden="true">⌄</span></button>
+    </div>
+  </header>
+
+  <main id="app-main">
+    <section class="page-shell" id="home-view" data-page="home">
+      <div class="welcome-row">
+        <div>
+          <h1>ตลาดดี เริ่มจาก<br><em>เจอที่ที่ใช่</em></h1>
+          <p class="intro">จัดการแผงร้านของคุณ แล้วออกไปพบลูกค้าในตลาดที่มีชีวิตชีวา</p>
+        </div>
+        <button class="button button-primary" type="button" data-action="navigate" data-target="stalls"><span class="button-icon" aria-hidden="true">＋</span> จองแผงใหม่</button>
+      </div>
+
+      <section class="market-banner" aria-label="ข้อมูลตลาด">
+        <div class="banner-art" aria-hidden="true"><span class="lantern lantern-one"></span><span class="lantern lantern-two"></span><span class="banner-orbit"></span><span class="banner-stall"></span></div>
+        <div class="banner-content">
+          <div class="banner-kicker"><span class="status-pill"><i></i> รอบถัดไป</span><span class="banner-date" id="banner-date">กำลังโหลดรอบตลาด...</span></div>
+          <h2 id="banner-market-name">ตลาดตัวอย่าง</h2>
+          <p><span aria-hidden="true">◷</span> <span id="banner-time">—</span> <span class="banner-divider">·</span> <span aria-hidden="true">⌖</span> <span id="banner-address">ข้อมูลตัวอย่าง เริ่มต้นแก้ไขได้ที่ผู้ดูแลตลาด</span></p>
+        </div>
+        <div class="banner-side"><span>เหลือเวลาอีก</span><strong id="banner-countdown">—</strong><span class="banner-side-label">ก่อนตลาดเปิด</span></div>
+      </section>
+
+      <section class="stats-grid" aria-label="สรุปข้อมูล">
+        <article class="stat-card"><div class="stat-icon icon-mint" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg></div><div><span class="stat-label">แผงทั้งหมด</span><strong>—</strong><small>ในตลาดรอบที่เลือก</small></div><span class="stat-corner" aria-hidden="true">↗</span></article>
+        <article class="stat-card"><div class="stat-icon icon-amber" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></div><div><span class="stat-label">แผงว่าง</span><strong>—</strong><small>เลือกจองได้ตอนนี้</small></div><span class="stat-corner" aria-hidden="true">↗</span></article>
+        <article class="stat-card"><div class="stat-icon icon-blue" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M7 4h13v16H7zM4 7v13"/><path d="M10 8h7M10 12h7M10 16h5"/></svg></div><div><span class="stat-label">การจองของฉัน</span><strong>—</strong><small>ยืนยันแล้ว</small></div><span class="stat-corner" aria-hidden="true">↗</span></article>
+      </section>
+
+      <div class="content-grid">
+        <section class="panel map-panel" aria-labelledby="map-heading">
+          <div class="panel-heading">
+            <div><h2 id="map-heading">ผังตลาดรอบถัดไป</h2></div>
+            <button class="text-button" type="button" data-action="navigate" data-target="stalls">ดูผังเต็ม <span aria-hidden="true">↗</span></button>
+          </div>
+          <div class="map-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i class="legend-free"></i> ว่าง</span><span><i class="legend-mine"></i> ร้านของฉัน</span><span><i class="legend-taken"></i> มีร้านแล้ว</span></div>
+          <div class="mini-map" role="img" aria-label="ตัวอย่างแผนผังตลาด แสดงแผงว่างและแผงที่จองแล้ว">
+            <div class="map-water"><span>คลองชุมชน</span></div><div class="map-walkway">ทางเดินหลัก</div>
+            <div class="map-stalls" id="mini-stalls"></div>
+            <span class="map-north">N ↑</span><span class="map-gate"><span>ทางเข้า</span> ⇢</span>
+          </div>
+          <div class="map-foot"><span><i class="pin-dot"></i> <span id="home-map-summary">ผังตัวอย่าง</span></span><span id="home-map-updated">ข้อมูลตัวอย่าง</span></div>
+        </section>
+
+        <section class="panel booking-panel" aria-labelledby="booking-heading">
+          <div class="panel-heading"><div><h2 id="booking-heading">การจองล่าสุด</h2></div><button class="icon-button" type="button" aria-label="ดูการจองทั้งหมด" data-action="navigate" data-target="bookings">↗</button></div>
+          <div class="booking-list" id="recent-bookings"></div>
+          <button class="button button-quiet full-width" type="button" data-action="navigate" data-target="bookings">ดูการจองทั้งหมด <span aria-hidden="true">→</span></button>
+        </section>
+      </div>
+
+      <section class="bottom-callout">
+        <div class="callout-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></div>
+        <div><strong>ให้ลูกค้าหาคุณเจอง่ายขึ้น</strong><p>เปิดแผนผังตลาดและแชร์ QR Code ให้ลูกค้าวางแผนแวะร้านของคุณ</p></div>
+        <button class="button button-outline" type="button" data-action="navigate" data-target="market">ดูมุมมองลูกค้า <span aria-hidden="true">→</span></button>
+      </section>
+      <p id="status" class="health-status" role="status" aria-live="polite">กำลังตรวจสอบการเชื่อมต่อ...</p>
+    </section>
+
+    <section class="page-shell secondary-view" id="stalls-view" data-page="stalls" hidden>
+      <div class="page-heading"><div><h1>เลือกแผงที่<em>เหมาะกับร้าน</em></h1><p class="intro">เลือกแผงว่างได้มากกว่าหนึ่งแผง แล้วกดยืนยันเมื่อพร้อม</p></div><button class="button button-outline" data-action="navigate" data-target="home">กลับหน้าภาพรวม</button></div>
+      <section class="panel filter-panel"><label>รอบตลาด<select id="session-select"><option value="">กำลังโหลดรอบตลาด...</option></select></label><label>ค้นหาแผง<input id="stall-search" type="search" placeholder="เช่น A-12"></label><div class="filter-note"><i class="legend-free"></i> แตะเพื่อเลือกหลายแผง</div></section>
+      <div class="booking-layout"><section class="panel full-map-panel"><div class="panel-heading"><div><h2 id="stall-map-title">แผนผังแผงร้านค้า</h2></div><div class="map-controls"><button class="icon-button" id="zoom-out" aria-label="ย่อผัง">−</button><button class="icon-button" id="zoom-in" aria-label="ขยายผัง">＋</button></div></div><div class="map-legend"><span><i class="legend-free"></i> ว่าง</span><span><i class="legend-selected"></i> เลือกแล้ว</span><span><i class="legend-taken"></i> มีผู้จอง</span></div><div class="full-map" id="full-map" aria-label="แผนผังเลือกแผง"></div><p class="inline-status" id="map-message" role="status">เลือกแผงว่างเพื่อดูรายละเอียด</p></section><aside class="panel selection-panel"><h2>แผงที่เลือก <span id="selection-count">0</span></h2><div id="selection-list" class="selection-list"><p class="empty-note">ยังไม่ได้เลือกแผง</p></div><div class="selection-total"><span>รวมค่าเช่า</span><strong id="selection-total">฿0</strong></div><button class="button button-primary full-width" id="confirm-booking" type="button" disabled>ยืนยันการจอง <span aria-hidden="true">→</span></button><p class="fine-print">ยืนยันแล้ว แผงจะถูกจองในชื่อร้านของคุณ</p></aside></div>
+    </section>
+
+    <section class="page-shell secondary-view" id="bookings-view" data-page="bookings" hidden>
+      <div class="page-heading"><div><h1>การจอง<em>ของฉัน</em></h1><p class="intro">ตรวจสอบและจัดการแผงที่จองไว้</p></div><button class="button button-primary" data-action="navigate" data-target="stalls">＋ จองแผงเพิ่ม</button></div>
+      <section class="panel"><div class="panel-heading"><div><h2>รายการจอง</h2></div><div class="booking-filters"><label class="compact-label">รอบตลาด<select id="booking-session-filter"><option value="">ทุกรอบ</option></select></label><label class="compact-label">สถานะ<select id="booking-filter"><option value="">ทั้งหมด</option><option value="confirmed">ยืนยันแล้ว</option><option value="cancelled">ยกเลิก</option><option value="pending">รอตรวจสอบ</option><option value="rejected">ไม่อนุมัติ</option></select></label></div></div><div id="booking-table" class="booking-table"></div><div id="booking-pagination" class="pagination"></div></section>
+    </section>
+
+    <section class="page-shell secondary-view" id="market-view" data-page="market" hidden>
+      <div class="page-heading"><div><h1>วางแผนแวะร้าน<em>ที่คุณชอบ</em></h1><p class="intro">ค้นหาร้านและดูตำแหน่งในตลาด ไม่ต้องเข้าสู่ระบบ</p></div><span class="public-mark">มุมมองสำหรับลูกค้า</span></div>
+      <section class="panel filter-panel"><label>รอบตลาด<select id="public-session-select"><option value="">กำลังโหลดรอบตลาด...</option></select></label><label class="search-field">ค้นหาร้าน<input id="public-search" type="search" placeholder="ชื่อร้านที่อยากแวะ"></label><label>ประเภท<select id="category-filter"><option value="">ทุกประเภท</option></select></label></section>
+      <div class="public-layout"><section class="panel public-map-panel"><div class="panel-heading"><div><h2 id="public-map-title">แผนผังร้านค้า</h2></div><button class="button button-outline" id="copy-market-link" type="button">สร้าง QR สำหรับแชร์</button></div><div class="full-map public-map" id="public-map"></div><div class="map-legend"><span><i class="legend-taken"></i> เปิดร้าน</span><span><i class="legend-free"></i> ยังไม่มีร้าน</span></div></section><section class="panel public-shops-panel"><div class="panel-heading"><div><h2>ร้านในตลาด</h2></div><span id="public-shop-count" class="result-count"></span></div><div id="public-shop-detail" class="public-shop-detail" hidden></div><div id="public-shop-list" class="public-shop-list"></div></section></div>
+    </section>
+
+    <section class="page-shell secondary-view" id="profile-view" data-page="profile" hidden>
+      <div class="page-heading"><div><h1>โปรไฟล์<em>ร้านของคุณ</em></h1><p class="intro">ข้อมูลนี้จะแสดงให้ลูกค้าเห็นเมื่อเปิดร้านเป็นสาธารณะ</p></div><div class="profile-actions"><button class="button button-outline" type="button" data-action="navigate" data-target="home">กลับหน้าภาพรวม</button><button class="button button-outline" id="logout-button" type="button">ออกจากระบบ</button></div></div>
+      <section class="panel profile-panel">
+        <form id="profile-form" class="profile-form">
+          <div class="profile-logo">
+            <img id="profile-logo-preview" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="โลโก้ร้าน" hidden>
+            <span id="profile-logo-placeholder" aria-hidden="true">ต</span>
+            <label class="button button-outline" for="profile-logo">เลือกโลโก้</label>
+            <input id="profile-logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
+            <small>PNG, JPEG, GIF หรือ WebP ขนาดไม่เกิน 5 MB</small>
+          </div>
+          <label>ชื่อร้าน<input name="name" required maxlength="120" autocomplete="organization"></label>
+          <label>คำแนะนำร้าน<textarea name="description" rows="4" maxlength="5000"></textarea></label>
+          <div class="profile-fields">
+            <label>ชื่อผู้ติดต่อ<input name="contactName" maxlength="120" autocomplete="name"></label>
+            <label>เบอร์ติดต่อร้าน<input name="contactPhone" inputmode="tel" maxlength="20" autocomplete="tel"></label>
+          </div>
+          <fieldset class="category-options"><legend>ประเภทสินค้า</legend><div id="profile-categories"></div></fieldset>
+          <label class="public-toggle"><input name="isPublic" type="checkbox"><span>แสดงร้านและเบอร์ติดต่อในแผนผังลูกค้า</span></label>
+          <p id="profile-message" role="status" aria-live="polite"></p>
+          <button class="button button-primary" type="submit" id="profile-save">บันทึกโปรไฟล์</button>
+        </form>
+      </section>
+    </section>
+
+    <dialog id="auth-dialog" class="auth-dialog"><button class="dialog-close" type="button" aria-label="ปิด">×</button><div class="auth-brand"><span class="brand-mark">ต</span><span><strong>ตากลาดนัด</strong><small>พื้นที่จัดการร้านค้า</small></span></div><div class="auth-tabs"><button class="auth-tab active" data-auth="login">เข้าสู่ระบบ</button><button class="auth-tab" data-auth="register">สมัครร้านค้า</button></div><form id="auth-form"><div id="auth-fields"></div><p id="auth-message" role="alert"></p><button class="button button-primary full-width" type="submit" id="auth-submit">เข้าสู่ระบบ <span aria-hidden="true">→</span></button></form></dialog>
+    <dialog id="qr-dialog" class="qr-dialog"><button class="dialog-close" type="button" aria-label="ปิด">×</button><h2>QR Code แผนผังตลาด</h2><p>ลูกค้าสแกน QR นี้เพื่อเปิดผังรอบตลาดที่เลือก</p><img id="qr-image" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="QR Code สำหรับเปิดผังรอบตลาดที่เลือก" hidden><label>ลิงก์สาธารณะ<input id="qr-link" readonly></label><div class="qr-actions"><button class="button button-outline" id="copy-qr-link" type="button">คัดลอกลิงก์</button><button class="button button-primary" id="download-qr" type="button">ดาวน์โหลด QR</button></div></dialog>
+    <div class="toast-region" id="toast-region" role="status" aria-live="polite"></div>
+  </main>
+  <footer class="site-footer"><span>ตากลาดนัด <i>·</i> ตลาดชุมชนที่ทุกแผงมีเรื่องราว</span><span id="footer-health">เชื่อมต่อระบบ...</span></footer>
+</body>
+</html>
