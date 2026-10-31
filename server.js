@@ -59,13 +59,13 @@ function ensureSchema() {
 }
 
 app.disable("x-powered-by");
+app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json({ limit: "100kb" }));
 app.use((req, res, next) => {
   if (req.body === undefined) req.body = {};
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return sendError(res, 400, "INVALID_BODY", "รูปแบบข้อมูลคำขอไม่ถูกต้อง");
   next();
 });
-app.use(express.static(path.join(__dirname, "public")));
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api/v1/public/") && !allowPublicRequest(req.ip)) return sendError(res, 429, "RATE_LIMITED", "มีการเรียกดูข้อมูลบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
   if (req.path.startsWith("/api/") && req.path !== "/api/v1/health") {
