@@ -1,5 +1,6 @@
 const express = require("express");
-require("dotenv").config();
+const dotenv = require("dotenv");
+dotenv.config();
 const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -698,4 +699,4 @@ app.use((error, _req, res, _next) => {
 });
 
 const port = process.env.PORT || 3109;
-app.listen(port, () => console.log(`Server listening on port ${port}`));
+app.listen(3109, () => console.log(`Server listening on port ${port}`));
