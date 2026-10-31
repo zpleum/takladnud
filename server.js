@@ -1,4 +1,4 @@
-﻿const express = require("express");
+const express = require("express");
 const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -27,7 +27,7 @@ const imageDirectory = path.join(__dirname, "public", "images");
 const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 const schema = [
   `CREATE TABLE IF NOT EXISTS users (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, email VARCHAR(254) NOT NULL, phone VARCHAR(20) NULL, password_hash VARCHAR(255) NOT NULL, role ENUM('shop','customer','admin') NOT NULL DEFAULT 'shop', status ENUM('active','disabled') NOT NULL DEFAULT 'active', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_users_email (email), UNIQUE KEY uq_users_phone (phone)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
-  `CREATE TABLE IF NOT EXISTS shops (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL, name VARCHAR(120) NOT NULL, description TEXT NULL, contact_name VARCHAR(120) NULL, contact_phone VARCHAR(20) NULL, logo_image VARCHAR(255) NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_shops_user (user_id), KEY idx_shops_public_name (is_public,name), CONSTRAINT fk_shops_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS shops (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, user_id BIGINT UNSIGNED NOT NULL, name VARCHAR(120) NOT NULL, description TEXT NULL, contact_name VARCHAR(120) NULL, contact_phone VARCHAR(20) NULL, line_id VARCHAR(100) NULL, logo_image VARCHAR(255) NULL, is_public BOOLEAN NOT NULL DEFAULT TRUE, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_shops_user (user_id), KEY idx_shops_public_name (is_public,name), CONSTRAINT fk_shops_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS categories (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, name VARCHAR(80) NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_categories_name (name)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS shop_categories (shop_id BIGINT UNSIGNED NOT NULL, category_id BIGINT UNSIGNED NOT NULL, PRIMARY KEY (shop_id,category_id), CONSTRAINT fk_shop_categories_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE, CONSTRAINT fk_shop_categories_category FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS markets (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, name VARCHAR(150) NOT NULL, description TEXT NULL, address VARCHAR(255) NULL, map_image VARCHAR(255) NULL, map_width INT UNSIGNED NULL, map_height INT UNSIGNED NULL, status ENUM('active','inactive') NOT NULL DEFAULT 'active', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -36,6 +36,7 @@ const schema = [
   `CREATE TABLE IF NOT EXISTS bookings (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, shop_id BIGINT UNSIGNED NOT NULL, session_id BIGINT UNSIGNED NOT NULL, stall_id BIGINT UNSIGNED NOT NULL, status ENUM('pending','confirmed','rejected','cancelled') NOT NULL DEFAULT 'confirmed', price_at_booking DECIMAL(10,2) NOT NULL, shop_note VARCHAR(500) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, cancelled_at DATETIME NULL, PRIMARY KEY (id), KEY idx_bookings_shop_created (shop_id,created_at), KEY idx_bookings_session_stall_status (session_id,stall_id,status), CONSTRAINT fk_bookings_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE RESTRICT, CONSTRAINT fk_bookings_session FOREIGN KEY (session_id) REFERENCES market_sessions(id) ON DELETE RESTRICT, CONSTRAINT fk_bookings_stall FOREIGN KEY (stall_id) REFERENCES stalls(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS app_sessions (token_hash CHAR(64) NOT NULL, user_id BIGINT UNSIGNED NOT NULL, csrf_token CHAR(43) NOT NULL, expires_at DATETIME NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (token_hash), KEY idx_app_sessions_user (user_id), KEY idx_app_sessions_expiry (expires_at), CONSTRAINT fk_app_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   `CREATE TABLE IF NOT EXISTS qr_codes (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, session_id BIGINT UNSIGNED NOT NULL, token_hash CHAR(64) NOT NULL, status ENUM('active','revoked') NOT NULL DEFAULT 'active', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, expires_at DATETIME NULL, PRIMARY KEY (id), UNIQUE KEY uq_qr_token_hash (token_hash), KEY idx_qr_session_status (session_id,status), CONSTRAINT fk_qr_session FOREIGN KEY (session_id) REFERENCES market_sessions(id) ON DELETE RESTRICT) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  `CREATE TABLE IF NOT EXISTS shop_reviews (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, shop_id BIGINT UNSIGNED NOT NULL, reviewer_name VARCHAR(80) NOT NULL, rating TINYINT UNSIGNED NOT NULL, comment VARCHAR(1000) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), KEY idx_reviews_shop_created (shop_id,created_at), CONSTRAINT fk_reviews_shop FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 async function rollbackTransaction(connection) {
   try { await connection.rollback(); }
@@ -49,8 +50,8 @@ function ensureSchema() {
       for (const statement of schema) await connection.query(statement);
       const [phoneIndex] = await connection.query("SHOW INDEX FROM users WHERE Key_name='uq_users_phone'");
       if (!phoneIndex.length) await connection.query("ALTER TABLE users ADD UNIQUE KEY uq_users_phone (phone)");
-      // Retire the known bootstrap demo without deleting related market or booking records.
-      await connection.execute("UPDATE markets SET status='inactive' WHERE name=? AND description=? AND status='active'", ["ตลาดเย็นริมคลอง (ตัวอย่าง)", "ข้อมูลตัวอย่างสำหรับเริ่มต้นใช้งาน"]);
+      const [lineColumn] = await connection.query("SHOW COLUMNS FROM shops WHERE Field='line_id'");
+      if (!lineColumn.length) await connection.query("ALTER TABLE shops ADD COLUMN line_id VARCHAR(100) NULL AFTER contact_phone");
     }
     finally { connection.release(); }
   })().catch((error) => { schemaReady = null; throw error; });
@@ -134,6 +135,10 @@ function shopOnly(req, res, next) {
   if (req.session.role !== "shop" || !req.session.shopId) return sendError(res, 403, "SHOP_REQUIRED", "บัญชีนี้ไม่มีโปรไฟล์ร้านค้า");
   next();
 }
+function adminOnly(req, res, next) {
+  if (req.session.role !== "admin") return sendError(res, 403, "ADMIN_REQUIRED", "ต้องใช้บัญชีผู้ดูแลระบบ");
+  next();
+}
 function allowAuthAttempts(key) {
   const now = Date.now();
   const item = loginAttempts.get(key);
@@ -167,7 +172,8 @@ function clearAuthAttempts(key) { loginAttempts.delete(key); }
 function validEmail(value) { return typeof value === "string" && value.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()); }
 function text(value, min, max) { return typeof value === "string" && value.trim().length >= min && value.trim().length <= max; }
 function toPublicShop(row) {
-  return { id: String(row.shop_id), name: row.shop_name, description: row.description, logoImage: row.logo_image ? `/images/${encodeURIComponent(row.logo_image)}` : null, contactPhone: row.contact_phone, stallCode: row.stall_code, x: row.x_percent == null ? null : Number(row.x_percent), y: row.y_percent == null ? null : Number(row.y_percent), categories: row.categories || [] };
+  const stallCodes = row.stall_codes ? String(row.stall_codes).split(",").filter(Boolean) : (row.stall_code ? [String(row.stall_code)] : []);
+  return { id: String(row.shop_id), name: row.shop_name, description: row.description, logoImage: row.logo_image ? `/images/${encodeURIComponent(row.logo_image)}` : null, contactPhone: row.contact_phone, lineId: row.line_id || null, stallCode: stallCodes[0] || "", stallCodes, x: row.x_percent == null ? null : Number(row.x_percent), y: row.y_percent == null ? null : Number(row.y_percent), categories: row.categories || [] };
 }
 
 app.get("/api/v1/health", async (_req, res) => {
@@ -227,7 +233,7 @@ app.post("/api/v1/auth/login", async (req, res) => {
   try {
     const [rows] = await pool.execute("SELECT u.id,u.email,u.password_hash,u.role,sh.id AS shop_id,sh.name AS shop_name FROM users u LEFT JOIN shops sh ON sh.user_id=u.id WHERE u.email=? AND u.status='active' LIMIT 1", [email]);
     const valid = rows.length ? await bcrypt.compare(password, rows[0].password_hash) : await bcrypt.compare(password, "$2a$12$gnoZpOR5vsjy8udXrrb/TOdEBpNFX.YoxyAyO7.6oyh2wR3w8Sjcy");
-    if (!rows.length || !valid || rows[0].role !== "shop") return sendError(res, 401, "INVALID_CREDENTIALS", "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
+    if (!rows.length || !valid || !["shop", "admin"].includes(rows[0].role)) return sendError(res, 401, "INVALID_CREDENTIALS", "อีเมลหรือรหัสผ่านไม่ถูกต้อง");
     if (bcrypt.getRounds(rows[0].password_hash) < 12) {
       const passwordHash = await bcrypt.hash(password, 12);
       await pool.execute("UPDATE users SET password_hash=?,updated_at=UTC_TIMESTAMP() WHERE id=?", [passwordHash, rows[0].id]);
@@ -249,8 +255,11 @@ app.get("/api/v1/markets", async (req, res, next) => {
   try {
     const paging = pageParams(req); if (!paging) return sendError(res, 400, "INVALID_PAGINATION", "เลขหน้าและจำนวนรายการไม่ถูกต้อง");
     const { page, limit } = paging; const offset = (page - 1) * limit;
-    const [[count]] = await pool.execute("SELECT COUNT(*) AS total FROM markets WHERE status='active'");
-    const [rows] = await pool.execute("SELECT id,name,description,address,map_image,map_width,map_height FROM markets WHERE status='active' ORDER BY name,id LIMIT ? OFFSET ?", [limit, offset]);
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const where = q ? "status='active' AND (name LIKE ? OR address LIKE ?)" : "status='active'";
+    const params = q ? [`%${q}%`, `%${q}%`] : [];
+    const [[count]] = await pool.execute(`SELECT COUNT(*) AS total FROM markets WHERE ${where}`, params);
+    const [rows] = await pool.execute(`SELECT id,name,description,address,map_image,map_width,map_height FROM markets WHERE ${where} ORDER BY name,id LIMIT ? OFFSET ?`, [...params, limit, offset]);
     res.json({ data: rows.map((r) => ({ id: String(r.id), name: r.name, description: r.description, address: r.address, mapImage: r.map_image ? `/images/${encodeURIComponent(r.map_image)}` : null, mapWidth: r.map_width, mapHeight: r.map_height })), meta: pagination(page, limit, count.total) });
   } catch (e) { next(e); }
 });
@@ -282,8 +291,8 @@ app.get("/api/v1/sessions/:sessionId/map", async (req, res, next) => {
       if (authRows.length) user = { id: String(authRows[0].id), shopId: authRows[0].shop_id == null ? null : String(authRows[0].shop_id) };
     }
     const categoryId = req.query.categoryId || null;
-    const [stalls] = await pool.execute("SELECT st.id,st.stall_code,st.name,st.description,st.x_percent,st.y_percent,st.width_percent,st.height_percent,st.base_price,st.status,b.shop_id,sh.name AS shop_name,sh.is_public,CASE WHEN ? IS NULL OR EXISTS (SELECT 1 FROM shop_categories sc WHERE sc.shop_id=b.shop_id AND sc.category_id=?) THEN 1 ELSE 0 END AS category_match FROM stalls st LEFT JOIN bookings b ON b.stall_id=st.id AND b.session_id=? AND b.status IN ('pending','confirmed') LEFT JOIN shops sh ON sh.id=b.shop_id WHERE st.market_id=? ORDER BY st.stall_code", [categoryId, categoryId, req.params.sessionId, session.market_id]);
-    const data = { session: { id: String(session.id), name: session.name, startsAt: session.starts_at, endsAt: session.ends_at, bookingOpensAt: session.booking_opens_at, bookingClosesAt: session.booking_closes_at, status: session.status }, market: { id: String(session.market_id), name: session.market_name, description: session.market_description, address: session.market_address, mapImage: session.map_image ? `/images/${encodeURIComponent(session.map_image)}` : null, mapWidth: session.map_width, mapHeight: session.map_height }, stalls: stalls.map((st) => ({ id: String(st.id), code: st.stall_code, name: st.name, description: user?.shopId ? st.description : undefined, x: st.x_percent == null ? null : Number(st.x_percent), y: st.y_percent == null ? null : Number(st.y_percent), width: st.width_percent == null ? null : Number(st.width_percent), height: st.height_percent == null ? null : Number(st.height_percent), price: user?.shopId ? Number(st.base_price || 0) : undefined, availability: st.status !== "active" ? "inactive" : st.shop_id ? "booked" : "available", ownBooking: Boolean(user?.shopId && String(st.shop_id) === user.shopId), shop: st.shop_id && st.is_public && st.category_match ? { id: String(st.shop_id), name: st.shop_name } : null })) };
+    const [stalls] = await pool.execute("SELECT st.id,st.stall_code,st.name,st.description,st.x_percent,st.y_percent,st.width_percent,st.height_percent,st.base_price,st.status,b.shop_id,sh.name AS shop_name,sh.is_public,sh.line_id,(SELECT COALESCE(AVG(r.rating),0) FROM shop_reviews r WHERE r.shop_id=b.shop_id) AS rating,(SELECT COUNT(*) FROM shop_reviews r WHERE r.shop_id=b.shop_id) AS review_count,CASE WHEN ? IS NULL OR EXISTS (SELECT 1 FROM shop_categories sc WHERE sc.shop_id=b.shop_id AND sc.category_id=?) THEN 1 ELSE 0 END AS category_match FROM stalls st LEFT JOIN bookings b ON b.stall_id=st.id AND b.session_id=? AND b.status IN ('pending','confirmed') LEFT JOIN shops sh ON sh.id=b.shop_id WHERE st.market_id=? ORDER BY st.stall_code", [categoryId, categoryId, req.params.sessionId, session.market_id]);
+    const data = { session: { id: String(session.id), name: session.name, startsAt: session.starts_at, endsAt: session.ends_at, bookingOpensAt: session.booking_opens_at, bookingClosesAt: session.booking_closes_at, status: session.status }, market: { id: String(session.market_id), name: session.market_name, description: session.market_description, address: session.market_address, mapImage: session.map_image ? `/images/${encodeURIComponent(session.map_image)}` : null, mapWidth: session.map_width, mapHeight: session.map_height }, stalls: stalls.map((st) => ({ id: String(st.id), code: st.stall_code, name: st.name, description: user?.shopId ? st.description : undefined, x: st.x_percent == null ? null : Number(st.x_percent), y: st.y_percent == null ? null : Number(st.y_percent), width: st.width_percent == null ? null : Number(st.width_percent), height: st.height_percent == null ? null : Number(st.height_percent), price: user?.shopId ? Number(st.base_price || 0) : undefined, availability: st.status !== "active" ? "inactive" : st.shop_id ? "booked" : "available", ownBooking: Boolean(user?.shopId && String(st.shop_id) === user.shopId), shop: st.shop_id && st.is_public && st.category_match ? { id: String(st.shop_id), name: st.shop_name, lineId: st.line_id || null, rating: st.review_count ? Number(Number(st.rating).toFixed(1)) : null, reviewCount: Number(st.review_count) } : null })) };
     sendData(res, data);
   } catch (e) { next(e); }
 });
@@ -423,10 +432,10 @@ app.get("/api/v1/public/sessions/:sessionId/shops", async (req, res, next) => {
     const params = [req.params.sessionId, queryText];
     if (req.query.categoryId) { where.push("EXISTS (SELECT 1 FROM shop_categories sc WHERE sc.shop_id=sh.id AND sc.category_id=?)"); params.push(req.query.categoryId); }
     const clause = where.join(" AND ");
-    const [[count]] = await pool.execute(`SELECT COUNT(DISTINCT CONCAT(sh.id,':',b.stall_id)) AS total FROM bookings b JOIN shops sh ON sh.id=b.shop_id WHERE ${clause}`, params);
+    const [[count]] = await pool.execute(`SELECT COUNT(DISTINCT sh.id) AS total FROM bookings b JOIN shops sh ON sh.id=b.shop_id JOIN stalls st ON st.id=b.stall_id WHERE ${clause}`, params);
     const sort = req.query.sort === "stallCode" ? "stallCode" : "name";
     const order = sort === "stallCode" ? "st.stall_code,sh.id" : "sh.name,st.stall_code,sh.id";
-    const [rows] = await pool.execute(`SELECT sh.id AS shop_id,sh.name AS shop_name,sh.description,sh.logo_image,sh.contact_phone,st.stall_code,st.x_percent,st.y_percent,GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ',') AS categories FROM bookings b JOIN shops sh ON sh.id=b.shop_id JOIN stalls st ON st.id=b.stall_id LEFT JOIN shop_categories sc ON sc.shop_id=sh.id LEFT JOIN categories c ON c.id=sc.category_id WHERE ${clause} GROUP BY sh.id,sh.name,sh.description,sh.logo_image,sh.contact_phone,st.stall_code,st.x_percent,st.y_percent ORDER BY ${order} LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    const [rows] = await pool.execute(`SELECT sh.id AS shop_id,sh.name AS shop_name,sh.description,sh.logo_image,sh.contact_phone,sh.line_id,GROUP_CONCAT(DISTINCT st.stall_code ORDER BY st.stall_code SEPARATOR ',') AS stall_codes,GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ',') AS categories FROM bookings b JOIN shops sh ON sh.id=b.shop_id JOIN stalls st ON st.id=b.stall_id LEFT JOIN shop_categories sc ON sc.shop_id=sh.id LEFT JOIN categories c ON c.id=sc.category_id WHERE ${clause} GROUP BY sh.id,sh.name,sh.description,sh.logo_image,sh.contact_phone,sh.line_id ORDER BY ${order === "stallCode" ? "stall_codes" : "sh.name"},sh.id LIMIT ? OFFSET ?`, [...params, limit, offset]);
     res.json({ data: rows.map((row) => ({ ...toPublicShop({ ...row, categories: row.categories ? row.categories.split(",") : [] }) })), meta: pagination(page, limit, count.total) });
   } catch (e) { next(e); }
 });
@@ -435,7 +444,7 @@ app.get("/api/v1/public/sessions/:sessionId/shops/:shopId", async (req, res, nex
   try {
     const [sessions] = await pool.execute("SELECT ms.id FROM market_sessions ms JOIN markets m ON m.id=ms.market_id WHERE ms.id=? AND ms.status IN ('open','closed') AND m.status='active' LIMIT 1", [req.params.sessionId]);
     if (!sessions.length) return sendError(res, 404, "NOT_FOUND", "ไม่พบรอบตลาดนี้");
-    const [rows] = await pool.execute("SELECT sh.id AS shop_id,sh.name AS shop_name,sh.description,sh.logo_image,sh.contact_phone,st.stall_code,st.x_percent,st.y_percent,GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ',') AS categories FROM bookings b JOIN shops sh ON sh.id=b.shop_id JOIN stalls st ON st.id=b.stall_id LEFT JOIN shop_categories sc ON sc.shop_id=sh.id LEFT JOIN categories c ON c.id=sc.category_id WHERE b.session_id=? AND sh.id=? AND b.status='confirmed' AND sh.is_public=TRUE GROUP BY sh.id,sh.name,sh.description,sh.logo_image,sh.contact_phone,st.stall_code,st.x_percent,st.y_percent LIMIT 1", [req.params.sessionId, req.params.shopId]);
+    const [rows] = await pool.execute("SELECT sh.id AS shop_id,sh.name AS shop_name,sh.description,sh.logo_image,sh.contact_phone,sh.line_id,GROUP_CONCAT(DISTINCT st.stall_code ORDER BY st.stall_code SEPARATOR ',') AS stall_codes,GROUP_CONCAT(DISTINCT c.name ORDER BY c.name SEPARATOR ',') AS categories FROM bookings b JOIN shops sh ON sh.id=b.shop_id JOIN stalls st ON st.id=b.stall_id LEFT JOIN shop_categories sc ON sc.shop_id=sh.id LEFT JOIN categories c ON c.id=sc.category_id WHERE b.session_id=? AND sh.id=? AND b.status='confirmed' AND sh.is_public=TRUE GROUP BY sh.id,sh.name,sh.description,sh.logo_image,sh.contact_phone,sh.line_id LIMIT 1", [req.params.sessionId, req.params.shopId]);
     if (!rows.length) return sendError(res, 404, "NOT_FOUND", "ไม่พบร้านนี้ในรอบตลาด");
     sendData(res, toPublicShop({ ...rows[0], categories: rows[0].categories ? rows[0].categories.split(",") : [] }));
   } catch (e) { next(e); }
@@ -469,16 +478,16 @@ app.post("/api/v1/shop/sessions/:sessionId/qr", auth, shopOnly, async (req, res,
 });
 app.get("/api/v1/shop/profile", auth, shopOnly, async (req, res, next) => {
   try {
-    const [rows] = await pool.execute("SELECT sh.id,sh.name,sh.description,sh.contact_name,sh.contact_phone,sh.logo_image,sh.is_public FROM shops sh WHERE sh.id=?", [req.session.shopId]);
+    const [rows] = await pool.execute("SELECT sh.id,sh.name,sh.description,sh.contact_name,sh.contact_phone,sh.line_id,sh.logo_image,sh.is_public FROM shops sh WHERE sh.id=?", [req.session.shopId]);
     const [categories] = await pool.execute("SELECT c.id,c.name FROM shop_categories sc JOIN categories c ON c.id=sc.category_id WHERE sc.shop_id=? ORDER BY c.name", [req.session.shopId]);
     if (!rows.length) return sendError(res, 404, "NOT_FOUND", "ไม่พบข้อมูลร้าน");
-    const shop = rows[0]; sendData(res, { id: String(shop.id), name: shop.name, description: shop.description, contactName: shop.contact_name, contactPhone: shop.contact_phone, logoImage: shop.logo_image ? `/images/${encodeURIComponent(shop.logo_image)}` : null, isPublic: Boolean(shop.is_public), categories: categories.map((c) => ({ id: String(c.id), name: c.name })) });
+    const shop = rows[0]; sendData(res, { id: String(shop.id), name: shop.name, description: shop.description, contactName: shop.contact_name, contactPhone: shop.contact_phone, lineId: shop.line_id, logoImage: shop.logo_image ? `/images/${encodeURIComponent(shop.logo_image)}` : null, isPublic: Boolean(shop.is_public), categories: categories.map((c) => ({ id: String(c.id), name: c.name })) });
   } catch (e) { next(e); }
 });
 app.patch("/api/v1/shop/profile", auth, shopOnly, async (req, res, next) => {
-  const allowed = ["name", "description", "contactName", "contactPhone", "isPublic", "categoryIds"];
+  const allowed = ["name", "description", "contactName", "contactPhone", "lineId", "isPublic", "categoryIds"];
   if (Object.keys(req.body).some((key) => !allowed.includes(key))) return sendError(res, 422, "VALIDATION_ERROR", "มีฟิลด์ที่ไม่รองรับ");
-  const fields = {}; const mapping = { name: "name", description: "description", contactName: "contact_name", contactPhone: "contact_phone", isPublic: "is_public" };
+  const fields = {}; const mapping = { name: "name", description: "description", contactName: "contact_name", contactPhone: "contact_phone", lineId: "line_id", isPublic: "is_public" };
   for (const [key, column] of Object.entries(mapping)) if (Object.hasOwn(req.body, key)) fields[column] = req.body[key];
   if (Object.hasOwn(req.body, "name") && !text(fields.name, 1, 120)) return sendError(res, 422, "VALIDATION_ERROR", "ชื่อร้านไม่ถูกต้อง");
   if (Object.hasOwn(req.body, "description") && fields.description != null && (typeof fields.description !== "string" || fields.description.length > 5000)) return sendError(res, 422, "VALIDATION_ERROR", "คำอธิบายยาวเกินกำหนด");
@@ -544,6 +553,93 @@ app.post("/api/v1/shop/logo", auth, shopOnly, limitLogoUploads, logoUpload.singl
     }
     next(error);
   }
+});
+
+app.get("/api/v1/shops/:shopId/reviews", async (req, res, next) => {
+  if (!isId(req.params.shopId)) return sendError(res, 400, "INVALID_ID", "รหัสร้านไม่ถูกต้อง");
+  try {
+    const [rows] = await pool.execute("SELECT id,reviewer_name,rating,comment,created_at FROM shop_reviews WHERE shop_id=? ORDER BY created_at DESC LIMIT 50", [req.params.shopId]);
+    const [[summary]] = await pool.execute("SELECT COALESCE(ROUND(AVG(rating),1),0) AS average,COUNT(*) AS count FROM shop_reviews WHERE shop_id=?", [req.params.shopId]);
+    sendData(res, { average: Number(summary.average), count: Number(summary.count), reviews: rows.map((r) => ({ id: String(r.id), reviewerName: r.reviewer_name, rating: r.rating, comment: r.comment, createdAt: r.created_at })) });
+  } catch (e) { next(e); }
+});
+app.post("/api/v1/shops/:shopId/reviews", async (req, res, next) => {
+  if (!isId(req.params.shopId)) return sendError(res, 400, "INVALID_ID", "รหัสร้านไม่ถูกต้อง");
+  const rating = Number(req.body.rating);
+  const reviewerName = typeof req.body.reviewerName === "string" ? req.body.reviewerName.trim() : "ผู้เยี่ยมชม";
+  const comment = typeof req.body.comment === "string" ? req.body.comment.trim() : null;
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return sendError(res, 422, "VALIDATION_ERROR", "คะแนนดาวต้องอยู่ระหว่าง 1 ถึง 5");
+  if (reviewerName.length > 80 || (comment && comment.length > 1000)) return sendError(res, 422, "VALIDATION_ERROR", "ข้อมูลรีวิวยาวเกินกำหนด");
+  try {
+    const [shops] = await pool.execute("SELECT id FROM shops WHERE id=? AND is_public=TRUE LIMIT 1", [req.params.shopId]);
+    if (!shops.length) return sendError(res, 404, "NOT_FOUND", "ไม่พบร้านค้านี้");
+    const [result] = await pool.execute("INSERT INTO shop_reviews (shop_id,reviewer_name,rating,comment,created_at) VALUES (?,?,?,?,UTC_TIMESTAMP())", [req.params.shopId, reviewerName || "ผู้เยี่ยมชม", rating, comment]);
+    sendData(res, { id: String(result.insertId) }, 201);
+  } catch (e) { next(e); }
+});
+
+app.get("/api/v1/admin/summary", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const queries = [
+      "SELECT COUNT(*) AS count FROM users",
+      "SELECT COUNT(*) AS count FROM markets",
+      "SELECT COUNT(*) AS count FROM shops",
+      "SELECT COUNT(*) AS count FROM bookings",
+    ];
+    const counts = await Promise.all(queries.map((sql) => pool.execute(sql)));
+    sendData(res, { users: counts[0][0][0].count, markets: counts[1][0][0].count, shops: counts[2][0][0].count, bookings: counts[3][0][0].count });
+  } catch (e) { next(e); }
+});
+app.get("/api/v1/admin/users", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute("SELECT u.id,u.email,u.phone,sh.name AS name,u.role,u.status,u.created_at FROM users u LEFT JOIN shops sh ON sh.user_id=u.id ORDER BY u.created_at DESC,u.id DESC LIMIT 200");
+    sendData(res, rows.map((r) => ({ id: String(r.id), email: r.email, phone: r.phone, name: r.name, role: r.role, status: r.status, createdAt: r.created_at })));
+  } catch (e) { next(e); }
+});
+app.patch("/api/v1/admin/users/:id", auth, adminOnly, async (req, res, next) => {
+  if (!isId(req.params.id)) return sendError(res, 400, "INVALID_ID", "รหัสผู้ใช้ไม่ถูกต้อง");
+  const role = req.body.role;
+  const status = req.body.status;
+  if (role != null && !["customer", "shop", "admin"].includes(role)) return sendError(res, 422, "VALIDATION_ERROR", "บทบาทไม่ถูกต้อง");
+  if (status != null && !["active", "disabled"].includes(status)) return sendError(res, 422, "VALIDATION_ERROR", "สถานะไม่ถูกต้อง");
+  try {
+    const sets = [];
+    const params = [];
+    if (role != null) { sets.push("role=?"); params.push(role); }
+    if (status != null) { sets.push("status=?"); params.push(status); }
+    if (!sets.length) return sendError(res, 422, "VALIDATION_ERROR", "ไม่มีข้อมูลที่ต้องเปลี่ยน");
+    params.push(req.params.id);
+    await pool.execute(`UPDATE users SET ${sets.join(",")},updated_at=UTC_TIMESTAMP() WHERE id=?`, params);
+    sendData(res, { updated: true });
+  } catch (e) { next(e); }
+});
+app.get("/api/v1/admin/markets", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute("SELECT id,name,address,status,created_at FROM markets ORDER BY name,id");
+    sendData(res, rows.map((r) => ({ id: String(r.id), name: r.name, address: r.address, status: r.status, createdAt: r.created_at })));
+  } catch (e) { next(e); }
+});
+app.post("/api/v1/admin/markets", auth, adminOnly, async (req, res, next) => {
+  const { name, address = null, description = null, status = "active" } = req.body;
+  if (!text(name, 1, 120) || !["active", "inactive"].includes(status)) return sendError(res, 422, "VALIDATION_ERROR", "ข้อมูลตลาดไม่ถูกต้อง");
+  try {
+    const [result] = await pool.execute("INSERT INTO markets (name,address,description,status,created_at,updated_at) VALUES (?,?,?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())", [name, address, description, status]);
+    sendData(res, { id: String(result.insertId) }, 201);
+  } catch (e) { next(e); }
+});
+app.patch("/api/v1/admin/markets/:id", auth, adminOnly, async (req, res, next) => {
+  if (!isId(req.params.id)) return sendError(res, 400, "INVALID_ID", "รหัสตลาดไม่ถูกต้อง");
+  if (req.body.name != null && !text(req.body.name, 1, 120)) return sendError(res, 422, "VALIDATION_ERROR", "ชื่อตลาดไม่ถูกต้อง");
+  if (req.body.status != null && !["active", "inactive"].includes(req.body.status)) return sendError(res, 422, "VALIDATION_ERROR", "สถานะไม่ถูกต้อง");
+  try {
+    const allowed = { name: "name", address: "address", description: "description", status: "status" };
+    const sets = Object.keys(allowed).filter((key) => Object.hasOwn(req.body, key)).map((key) => `${allowed[key]}=?`);
+    const params = Object.keys(allowed).filter((key) => Object.hasOwn(req.body, key)).map((key) => req.body[key]);
+    if (!sets.length) return sendError(res, 422, "VALIDATION_ERROR", "ไม่มีข้อมูลที่ต้องเปลี่ยน");
+    params.push(req.params.id);
+    await pool.execute(`UPDATE markets SET ${sets.join(",")},updated_at=UTC_TIMESTAMP() WHERE id=?`, params);
+    sendData(res, { updated: true });
+  } catch (e) { next(e); }
 });
 
 app.use("/api", (_req, res) => sendError(res, 404, "NOT_FOUND", "ไม่พบ API endpoint นี้"));

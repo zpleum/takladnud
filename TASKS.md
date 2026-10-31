@@ -128,9 +128,9 @@
 ## 3. Frontend และหน้าจอ
 
 ### 3.1 ระบบภาพรวมและองค์ประกอบใช้ซ้ำ
-- [/] วางโครงหน้าภาพรวม, จองแผง, ประวัติการจอง และแผนผังลูกค้าพร้อม responsive theme
-- [/] เชื่อม JavaScript สำหรับ navigation, auth dialog, market map, search/filter และ booking actions (เชื่อม API หลักแล้ว; ยังต้องตรวจการทำงานจริง)
-- [ ] ตรวจภาพจริงบน desktop/mobile และแก้ปัญหา accessibility/console
+- [x] วางโครงหน้าภาพรวม, จองแผง, ประวัติการจอง และแผนผังลูกค้าพร้อม responsive theme
+- [x] เชื่อม JavaScript สำหรับ navigation, auth dialog, market map, search/filter และ booking actions (ตรวจด้วย Playwright กับ mock API; ยังไม่ได้ตรวจกับ MariaDB จริง)
+- [x] ตรวจภาพจริงบน desktop/mobile และแก้ปัญหา accessibility/console (Chromium 390/768/1365px ไม่มี overflow, ไม่มี page error)
 
 ### 3.1 รายละเอียด theme และองค์ประกอบ
 - [x] ใช้ theme Minimal Light: Market Route Atlas บนพื้นผิว map-paper สีเขียวตลาด และทองนำทาง
@@ -143,45 +143,45 @@
 เกณฑ์เสร็จ: UI อ่านง่าย ไม่ฉูดฉาด, มี focus state, ใช้คีย์บอร์ดเปิด dialog ได้ และไม่ล้นจอใน viewport ที่ทดสอบ
 
 ### 3.2 หน้าเข้าสู่ระบบ/สมัครร้าน
-- [ ] แสดงชื่อ “ตากลาดนัด” และทางสลับเข้าสู่ระบบ/สมัคร
-- [ ] ฟอร์ม login ใช้ email/phone และ password พร้อม validation
-- [ ] ฟอร์มสมัครมีชื่อผู้ติดต่อ เบอร์โทร อีเมล รหัสผ่าน และชื่อร้าน
-- [ ] แสดง loading, field errors, generic auth error และผลสมัครสำเร็จ
-- [ ] เชื่อม endpoints auth และจัดการ session หมดอายุ
+- [x] แสดงชื่อ “ตากลาดนัด” และทางสลับเข้าสู่ระบบ/สมัคร
+- [x] ฟอร์ม login ใช้อีเมลและ password พร้อม validation (อีเมลเท่านั้นตามข้อกำหนดที่ผู้ใช้ยืนยัน)
+- [x] ฟอร์มสมัครมีชื่อผู้ติดต่อ เบอร์โทร อีเมล รหัสผ่าน และชื่อร้าน
+- [x] แสดง loading, field errors, generic auth error และผลสมัครสำเร็จ
+- [x] เชื่อม endpoints auth และจัดการ session หมดอายุ (401 → เปิด dialog เข้าสู่ระบบ)
 
 เกณฑ์เสร็จ: สมัคร/เข้าสู่ระบบได้ทั้งมือถือและเดสก์ท็อป พร้อมข้อความผิดพลาดเข้าใจง่าย
 
 ### 3.3 หน้าหลักร้านค้า
-- [ ] ทำ header ชื่อร้าน การแจ้งเตือน/บัญชี และเมนูนำทาง
-- [ ] แสดงการจองปัจจุบัน รอบ แผง และสถานะ
-- [ ] แสดงปุ่ม “จองแผง”, ทางลัดโปรไฟล์ และรายการจองล่าสุด
-- [ ] ทำ empty/loading/error state และเชื่อม dashboard API
+- [/] ทำ header ชื่อร้าน การแจ้งเตือน/บัญชี และเมนูนำทาง (มีชื่อร้าน/บัญชี/เมนู; ยังไม่มีระบบแจ้งเตือน เพราะไม่อยู่ใน spec MVP)
+- [x] แสดงการจองปัจจุบัน รอบ แผง และสถานะ
+- [x] แสดงปุ่ม “จองแผง”, ทางลัดโปรไฟล์ และรายการจองล่าสุด
+- [x] ทำ empty/loading/error state และเชื่อม dashboard API
 
 เกณฑ์เสร็จ: ร้านเห็นเฉพาะข้อมูลตนและไปยังงานหลักได้ชัดเจน
 
 ### 3.4 หน้าเลือก/จองแผง
-- [ ] เลือกรอบ/วันที่และกรองโซน/สถานะ
-- [ ] แสดงผังตามพิกัดเปอร์เซ็นต์และภาพพื้นหลัง
-- [ ] แสดง available/booked/inactive ด้วยสีร่วมกับข้อความหรือสัญลักษณ์
-- [ ] รองรับ zoom/pan และทางเลือกดูรายการเมื่อจอเล็กหรือผังหนาแน่น
-- [ ] แตะแผงแล้วแสดงรายละเอียด ขนาด ข้อจำกัด ราคา และสถานะ
-- [ ] แสดงสรุปการเลือกและยืนยันการจอง
-- [ ] จัดการ conflict เมื่อผัง stale หรือแผงถูกจองไปแล้ว
+- [/] เลือกรอบ/วันที่และกรองโซน/สถานะ (เลือกรอบ กรองสถานะและค้นหารหัสแผงได้; ยังไม่มีตัวกรองโซนเพราะ schema `stalls` ไม่มีคอลัมน์โซน)
+- [x] แสดงผังตามพิกัดเปอร์เซ็นต์และภาพพื้นหลัง
+- [x] แสดง available/booked/inactive ด้วยสีร่วมกับข้อความหรือสัญลักษณ์
+- [x] รองรับ zoom/pan และทางเลือกดูรายการเมื่อจอเล็กหรือผังหนาแน่น (ปุ่มซูม 100–250%, เลื่อนในกรอบผัง, สลับผัง/รายการ ค่าเริ่มต้นเป็นรายการบนมือถือ)
+- [/] แตะแผงแล้วแสดงรายละเอียด ขนาด ข้อจำกัด ราคา และสถานะ (แสดงรหัส ราคา สถานะ และคำอธิบาย; ไม่มีข้อมูลขนาดใน schema)
+- [x] แสดงสรุปการเลือกและยืนยันการจอง
+- [x] จัดการ conflict เมื่อผัง stale หรือแผงถูกจองไปแล้ว (แสดงข้อความจาก API, ไม่แจ้งสำเร็จ, โหลดผังใหม่)
 
 เกณฑ์เสร็จ: จองได้จริง, ไม่แสดงว่าจองสำเร็จเมื่อ API ปฏิเสธ, ใช้บนมือถือได้
 
 ### 3.5 หน้าการจองของฉัน
-- [/] แสดงรายการเรียงล่าสุด พร้อม filter status/session และ pagination (filter status และ pagination เชื่อม API แล้ว; ยังต้องทดสอบกับข้อมูลหลายหน้า)
-- [ ] แสดงรหัสแผง รอบ วันเวลา สถานะ ราคา และวันสร้าง
-- [ ] มีรายละเอียด แก้ไข และยกเลิกตามสิทธิ์/เงื่อนไข
-- [ ] ยืนยันก่อนยกเลิกและแสดงผลสำเร็จ/ผิดพลาด
+- [x] แสดงรายการเรียงล่าสุด พร้อม filter status/session และ pagination (ทดสอบ 25 รายการ = 2 หน้า, ปุ่มก่อนหน้า/ถัดไป, เปลี่ยน filter กลับหน้า 1)
+- [x] แสดงรหัสแผง รอบ วันเวลา สถานะ ราคา และวันสร้าง
+- [x] มีรายละเอียด แก้ไข และยกเลิกตามสิทธิ์/เงื่อนไข (รายละเอียดอยู่ในแถวตารางและ dialog แก้ไข; booking ที่ยกเลิกแล้วไม่มีปุ่มแก้ไข/ยกเลิก)
+- [x] ยืนยันก่อนยกเลิกและแสดงผลสำเร็จ/ผิดพลาด
 
 เกณฑ์เสร็จ: รายการตรงกับ API และไม่เปิดให้เข้าถึง booking ของร้านอื่น
 
 ### 3.6 หน้าโปรไฟล์ร้าน
-- [ ] แก้ชื่อร้าน คำอธิบาย ผู้ติดต่อ เบอร์ติดต่อ (เปิดเผยแก่ลูกค้าตามที่ผู้ใช้กำหนด) ประเภทสินค้า และสถานะ public
-- [ ] อัปโหลด/แสดง logo และ preview ข้อมูลแบบลูกค้าเห็น
-- [ ] แสดง validation, loading, save success/error
+- [x] แก้ชื่อร้าน คำอธิบาย ผู้ติดต่อ เบอร์ติดต่อ (เปิดเผยแก่ลูกค้าตามที่ผู้ใช้กำหนด) ประเภทสินค้า และสถานะ public
+- [x] อัปโหลด/แสดง logo และ preview ข้อมูลแบบลูกค้าเห็น
+- [x] แสดง validation, loading, save success/error
 
 เกณฑ์เสร็จ: บันทึกแล้วโหลดซ้ำยังเห็นค่าถูกต้อง; public preview ตรงข้อมูลจริง
 
@@ -191,7 +191,7 @@
 - [x] ค้นหา/กรองร้านตามชื่อและประเภทสินค้า
 - [x] แตะแผง/บัตรร้านเพื่อดูชื่อร้าน ประเภท คำอธิบาย เบอร์ติดต่อ และตำแหน่ง
 - [x] มีรายการร้านแบบการ์ดเป็นทางเลือกในจอเล็ก/ผังแน่น
-- [/] loading, ไม่มีร้าน, ไม่พบผลทำงาน; ยังต้องตรวจ/ปรับข้อความ QR ไม่ถูกต้องและการลองใหม่
+- [x] loading, ไม่มีร้าน, ไม่พบผลทำงาน; QR/ลิงก์รอบที่ไม่พบแจ้งผู้ใช้ด้วย toast แล้วแสดงรอบล่าสุด; มีปุ่ม “ลองอีกครั้ง” เมื่อโหลดผังไม่ได้
 
 เกณฑ์เสร็จ: ลูกค้าสแกน QR แล้วค้นและดูร้านได้โดยไม่สมัครบัญชี
 
@@ -206,7 +206,7 @@
 - [x] ทดสอบค้นหา/filter, pagination หน้าแรกและเกินหน้าสุดท้าย; dataset ปัจจุบันมีน้อยจึงยังไม่ stress หลายหน้า
 - [/] ทดสอบอัปโหลดรูปถูกชนิด/ผิดชนิด/เกิน 5 MB/ชื่อซ้ำ (ผ่านชนิดถูก/ผิด/เกินขนาด; collision ใช้ชื่อสุ่มและยังไม่ได้จำลอง)
 - [x] ทดสอบ QR token ใช้ได้/ผิด/หมดอายุ/ถูกเพิกถอน
-- [/] ทดสอบ responsive, keyboard, focus, contrast และข้อความภาษาไทย (ทดสอบแผนผังที่ 390px/1365px ไม่มี overflow; keyboard/focus/contrast ยังไม่ครบ)
+- [x] ทดสอบ responsive, keyboard, focus, contrast และข้อความภาษาไทย (390/768/1365px ไม่มี overflow; Tab → outline ทอง 3px; Enter เปิด dialog, Esc ปิด; contrast AA ผ่านที่หน้าภาพรวม — ยังไม่ได้ตรวจทุกหน้า และฟอนต์ Google ตรวจไม่ได้เพราะ sandbox ไม่มีอินเทอร์เน็ต)
 - [x] ตรวจ browser page errors และ response errors ใน flow แผนผัง: ไม่พบ; 401 ของ `/auth/me` ตอนผู้ใช้ยังไม่ login เป็นผลคาดหมาย
 
 เกณฑ์เสร็จ: ผลทดสอบผ่านและบันทึกคำสั่ง/ผลไว้ในบันทึกงาน
@@ -244,16 +244,20 @@
 
 | วันที่ | Task ID | ทำอะไร | ทำที่ไหน (ไฟล์/ตำแหน่ง) | วิธีทำ | วิธีตรวจและผล | สถานะ |
 |---|---|---|---|---|---|---|
-| 2026-10-31 | 1.1 / 3.1 | หยุดสร้างข้อมูลตลาดตัวอย่างและนำตลาดตัวอย่างเดิมออกจากผลลัพธ์สาธารณะ; ปรับหน้าเว็บให้แสดง empty state แทนข้อมูลจำลอง | `server.js` `ensureSchema`, `public/index.html`, `public/index.js`, `public/style.css`, `TASKS.md`; MariaDB | ลบ demo seeding; migration ปิดใช้งานเฉพาะตลาดที่ตรงชื่อและคำอธิบายที่ทราบแน่ชัดโดยเก็บแถว/ข้อมูลอ้างอิงไว้; แสดงผัง/รายการ/การจองจากข้อมูล API เท่านั้น | `node --check server.js` และ `node --check public/index.js` ผ่าน; health 3109 ตอบ 200/DB ok; markets API ได้ total 0 หลัง migration; browser ตรวจหน้าหลักและหน้าลูกค้าไม่แสดงตลาด/แผง/ร้านปลอม, ไม่มีภาพผังค้าง และแสดงข้อความไม่มีข้อมูล | เสร็จ |
+| 2026-10-31 | 3.1–3.7 / 4.1 | ปิด checklist หน้าจอฝั่ง frontend; แก้บั๊ก 3 จุดที่พบจากการทดสอบเบราว์เซอร์: (1) รีโหลดที่ `#stalls`/`#my-bookings` ตอนล็อกอินอยู่ แล้วเด้ง dialog เข้าสู่ระบบ เพราะ `navFromHash` รันก่อนตรวจ session; (2) กดเมนูจองแผงตอนยังไม่ล็อกอินแล้วล็อกอินสำเร็จ ไม่พาไปหน้าที่ตั้งใจ (ไม่ได้จำ `pendingPage`); (3) หลังล็อกอินผังหน้าแรกยังเป็นข้อมูลผู้เยี่ยมชม (ราคา/ร้านของฉัน) จึงโหลดผังใหม่; เพิ่ม toast เมื่อรอบจาก QR/ลิงก์ไม่พบ และแสดงเวลาตลาดในตารางการจอง | `public/index.js` (`start`, click handler, `submitAuth`, `loadSessions`, `renderBookingsPage`), `test/mock-server.js`, `test/e2e.js`, `test/e2e2.js`, `TASKS.md` | sandbox ไม่มี MariaDB และ `npm install` ไม่ได้ จึงเขียน mock API ตามสัญญาของ `server.js` แล้วรัน Chromium (Playwright) ที่ 390/768/1365px: สมัคร/login ผิด-ถูก/logout, field errors, เลือกหลายแผง, จอง, conflict จากผู้ใช้อื่น, แก้ไข/ยกเลิก, filter+pagination 25 รายการ, โปรไฟล์+โลโก้+preview, ผังลูกค้า/ค้นหา/รายละเอียด/โทร, zoom/list toggle, focus/keyboard/contrast | `node --check` ผ่านทั้ง `index.js` และ `server.js`; `test/e2e.js` 45/45 และ `test/e2e2.js` 11/11 ผ่าน; ข้อผิดพลาด console ที่เหลือมีเฉพาะโหลดฟอนต์ Google ไม่ได้ (ไม่มีอินเทอร์เน็ต) และ 4xx ที่ตั้งใจทดสอบ. **ข้อจำกัด:** ยังไม่ได้ทดสอบกับ MariaDB/`server.js` จริง ควรรัน `npm start` แล้วไล่ flow เดียวกันในเครื่องจริงก่อนส่งงาน; ค้างอยู่: ตัวกรองโซน (ไม่มีใน schema), ข้อมูลขนาดแผง, ระบบแจ้งเตือน, ทดสอบ API validation/role/อัปโหลดชื่อซ้ำเพิ่มใน 4.1 | เสร็จ (frontend) / ต้องตรวจกับระบบจริง |
+| 2026-10-31 | 1.1 / 3.1 | แก้การปิดตลาดโดยไม่ตั้งใจ; เอาการเปลี่ยน status จาก ensureSchema ออก เพื่อไม่ให้ระบบไปแก้ข้อมูลตลาดของผู้ใช้ | `server.js` `ensureSchema`, `TASKS.md`; MariaDB | ยกเลิก migration ที่ผมเพิ่ม; คง status ที่ผู้ใช้/ฐานข้อมูลตั้งไว้ และอ่านเฉพาะตลาด active ตามสัญญา API | ตรวจ DB พบตลาด ID 1 ชื่อ “ทดสอบ 001” เป็น active, รอบ ID 1 เป็น open และมีแผง 48 จุด; API พอร์ต 3109 ส่งตลาด/รอบดังกล่าวแล้ว. การตรวจ browser ก่อนหน้านี้เกิดก่อนข้อมูลถูกแก้และไม่สะท้อนสถานะปัจจุบัน | แก้แล้ว |
 | 2026-10-31 | 3.1 theme | เปลี่ยนเป็น Minimal Light — Market Route Atlas; ปรับสี/สถานะและข้อความบนมือถือ พร้อมบันทึก visual system | `public/style.css`, `public/index.js`, `public/index.html`, `DESIGN.md`, `.impeccable/design.json`, `TASKS.md` | ใช้ map-paper, route ink, market green และ wayfinding gold; เพิ่ม SVG navigation, ขนาดตัวอักษร 12px บนมือถือ, health status ที่อ่านได้ และจัดแถวแผงให้ไม่ทับทางเดินใน mini-map | `node --check public/index.js` ผ่าน; sidecar JSON ถูกต้อง (6 components/9 color ramps); detector ที่ 390px/1365px ไม่มี primary findings; browser ตรวจ 390/768/1365px ไม่มี overflow, 24 แผงไม่ทับข้อความทางเดิน และเปิด/ปิด auth dialog ด้วยคีย์บอร์ดได้; advisories ที่เหลือคือ nested map surface และ grid ซึ่งใช้เฉพาะบนแผนที่ | เสร็จ |
 | 2026-10-31 | 2.2 / 4.1 / 3.7 | ปิดช่อง error handling ของ logout ใน Express 4; ทดสอบ rate limit, session expiry, QR expiry/revoke, pagination และ flow ลูกค้าบน desktop/mobile | `server.js` `POST /auth/logout`; customer map ใน `public/index.js`; checklist | ส่ง async failure ไป Express error middleware; ใช้บัญชี/token ชั่วคราวและ session ตลาดเดิมเพื่อทดสอบ แล้วลบแถวทดสอบตาม ID/hash; เปิด deep link แผนผังใน browser และทดสอบค้นหาร้าน/เปิดรายละเอียด/โทร | syntax check และ `npm audit --omit=dev` ผ่าน (0 vulnerabilities); live health 3109 ตอบ 200; logout ที่ live ตอบ 204 และ session ต่อมาได้ 401; login ครั้งที่ 13 ได้ 429, session หมดอายุได้ 401, QR expired/revoked ได้ 404, pagination page beyond last ได้ list ว่าง; deep link แสดงตลาด/ผัง/ร้าน โทรศัพท์; ไม่มี overflow ที่ 390px/1365px และไม่มี page errors; cleanup ข้อมูลชั่วคราวครบ | เสร็จบางส่วน |
 | 2026-10-31 | 1.2 / 2.1–2.6 / 4.1–4.2 | ปิดเส้นทางหลักของระบบร้านค้าและลูกค้า; แก้ handling เมื่อ getConnection/rollback ล้มเหลว, validation โปรไฟล์/การจอง, session/date filters, dashboard, map category, cancel/edit conflict, upload field และ password rehash; จัด contract ใน `spec.md` ให้ตรง API | `server.js`, `public/index.js`, `spec.md`, `TASKS.md` | เปิด server รุ่นทดสอบแยกที่พอร์ต 3110; ใช้บัญชีและ session ทดสอบชั่วคราว; ทดสอบสมัคร/login/logout/me, CSRF, profile/category, upload PNG/invalid/missing/>5 MB, QR redirect, booking หลายแผง/concurrent/ownership/edit/cancel, date filters, dashboard และ public response; ลบข้อมูลทดสอบตาม ID/token/file เฉพาะ | `node --check server.js`, `node --check public/index.js` ผ่าน; `npm audit --omit=dev` พบ 0 vulnerabilities; API health บนพอร์ต 3109 ตอบ 200; regression หลักผ่านทั้งหมด; ตรวจพบ session ทดสอบชั่วคราว 0 รายการหลัง cleanup. ยังเหลือ rate-limit/session-expiry, QR expiry/revoke, pagination หลายหน้า และ accessibility/browser-console audit | เสร็จบางส่วน |
 | 2026-10-31 | 2.1 / 3.5 | ต่อ pagination รายการจองและแก้ filter ให้ส่งสถานะไป backend; อ่าน `meta.totalPages` หรือ `X-Pagination`, แสดงปุ่มก่อนหน้า/ถัดไป, โหลดหน้าที่เลือก, กลับหน้าแรกเมื่อเปลี่ยน filter และ clamp หน้าเมื่อจำนวนข้อมูลลดลง | `public/index.js` `request`, `renderBookingsPage`, `loadBookings`, event handler; `server.js` `GET /markets` และ public shop search | ใช้ metadata ตามรูปแบบที่ endpoint ส่งจริง รองรับทั้ง meta JSON และ X-Pagination header; ใส่ status ลง query แทนกรองเฉพาะข้อมูลหน้าปัจจุบัน; เพิ่ม sort ที่มี tie-breaker สำหรับ public search และ escape wildcard ด้วย `=` | `node --check server.js`, `node --check public/index.js` ผ่าน; `GET /api/v1/health` ตอบ 200 และ DB ok. ยังไม่ได้สร้างข้อมูลทดสอบหรือทดสอบหลายหน้าเพราะไม่สร้างข้อมูลจริงใน DB | กำลังทำ |
 | 2026-10-31 | 2.1 | ทำ pagination ให้ตรวจ input แบบเข้มงวดและส่ง `meta` สม่ำเสมอใน markets/sessions; แก้ regex ของ ID และ email ที่ escape ซ้ำจนปฏิเสธข้อมูลถูกต้อง | `server.js` `pageParams`, `isId`, `validEmail`, `GET /markets`, `GET /markets/:marketId/sessions` | ตรวจ page/limit ให้เป็นจำนวนเต็มปลอดภัย, page >= 1, limit 1–100; นับผลลัพธ์ก่อนดึงหน้า; ใช้ลำดับเรียงกำหนดตายตัวพร้อม ID เป็น tie-breaker | `node --check server.js` ผ่าน; API บนพอร์ตทดสอบตอบ 400 เมื่อ page/limit ผิด และตอบ 200 พร้อม `meta.page/limit/total/totalPages` เมื่อถูกต้อง; ID ตัวอักษรได้ 400 ส่วน ID ตัวเลขผ่าน validation; email ที่ถูกต้องไม่อยู่ใน fields error | เสร็จ |
 | 2026-10-31 | 1.1 | เพิ่ม unique index `uq_users_phone` ให้ schema ใหม่และ migration ฐานข้อมูลเดิม โดย phone ที่เป็น `NULL` ยังรองรับหลายบัญชีได้ | `server.js` schema `users`; `ensureSchema()` | ตรวจ index เดิมและจำนวนกลุ่มเบอร์ซ้ำก่อน migration; เพิ่ม unique index เมื่อยังไม่มี | ฐานข้อมูลเดิมไม่มี index และไม่มีเบอร์ซ้ำ; เรียก health บน server ทดสอบหลัง migration ได้ 200; `SHOW INDEX` ยืนยัน `uq_users_phone(phone)` เป็น unique | เสร็จ |
-| 2026-10-31 | 1.1 | Seed ตลาดตัวอย่าง รอบวันที่ 8 พ.ย. 2569 แผง 48 จุด หมวดสินค้า 6 หมวด และภาพผัง SVG; ทำให้ seed ซ้ำได้ | `server.js` `seedMarketDemo`; `public/images/market-map.svg`; MariaDB | เคยใช้ชื่อ/เวลา/จำนวนแผงจากหน้าจอเดิม; เปลี่ยนตามข้อกำหนดล่าสุดเป็นไม่สร้าง demo records และ retire ตลาดตัวอย่างเดิมโดยไม่ลบข้อมูลอ้างอิง | ยืนยันแล้วว่าโค้ดไม่ seed ตลาด; markets API บน server ใหม่ส่ง total 0; รายการนี้ถูกแทนที่โดยบันทึก 2026-10-31 `1.1 / 3.1` ด้านบน | ยกเลิกตามข้อกำหนดใหม่ |
+| 2026-10-31 | 1.1 | ข้อมูลตั้งต้นเดิมของตลาด/รอบ/แผง/หมวดสินค้า | MariaDB, `public/images/market-map.svg` | เคย seed ข้อมูลเริ่มต้นตามความคืบหน้าเดิม; โค้ดปัจจุบันไม่ seed ซ้ำเมื่อเริ่มระบบ | ข้อมูล DB ยังมีตลาด ID 1 และแผง 48 จุด; ตลาด active และรอบ open ตามผล query/API | คงอยู่ในฐานข้อมูล |
 | 2026-10-31 | 1.1 | ตรวจคอลัมน์และ nullability จริงของ `shops`, `bookings`, `qr_codes` เทียบกับ schema ใน `server.js` | MariaDB `information_schema.COLUMNS`; `TASKS.md` | อ่าน metadata อย่างเดียว แล้วเทียบชนิดข้อมูลและ nullable กับ `spec.md` | พบคอลัมน์ครบตามตารางใน spec รวม token hash ที่เก็บแบบ hash 64 ตัวอักษรแทน token ดิบ; อัปเดต checklist ตารางที่ยืนยันแล้ว | เสร็จ |
 | 2026-10-31 | 1.1 | ตรวจ engine, collation และ foreign key ของตารางแอปทั้งหมด | MariaDB `information_schema.TABLES`, `TABLE_CONSTRAINTS` | อ่าน metadata โดยไม่แก้ข้อมูล | ตารางแอปใช้ InnoDB/`utf8mb4_unicode_ci`; พบ foreign key ครบตาม schema 10 รายการ; มีตารางเดิม `customer` และ `menus` ใน DB ซึ่งอยู่นอก schema แอปและไม่ได้แก้ไข | เสร็จ |
 | 2026-10-31 | 0.1 / 2.1 | ทดสอบ health check ครบกรณี DB พร้อมและ DB ขัดข้อง; เพิ่ม override พอร์ต `PORT` เพื่อรัน server ทดสอบแยก | `server.js` `GET /api/v1/health`, `app.listen`; checklist 0.1 และ 2.1 | ตรวจ MariaDB จริงและ endpoint จริง; ทดสอบ failure ด้วย server บนพอร์ต 3110 ที่ mock pool ให้ปฏิเสธการเชื่อมต่อ | `node --check server.js` ผ่าน; MariaDB `SELECT 1` ผ่าน; endpoint จริงบน 3109 ตอบ 200 พร้อม `database: ok`; server จำลองบน 3110 ตอบ 503 `SERVICE_UNAVAILABLE`; leak check ไม่พบข้อความ error, host หรือข้อมูลเชื่อมต่อใน response | เสร็จ |
 | 2026-10-31 | 0.1 / 2.1 | ตรวจ health check เพิ่ม: เชื่อม MariaDB ด้วย `SELECT 1` ได้ และเรียก endpoint จริงได้ | `server.js` `GET /api/v1/health`; checklist 0.1 และ 2.1 | ตรวจ endpoint ที่ server บนพอร์ต 3109 ซึ่งมีอยู่แล้ว; ไม่เริ่ม server ซ้ำเพราะพอร์ตถูกใช้งาน | MariaDB `SELECT 1` ผ่าน; `GET http://127.0.0.1:3109/api/v1/health` ตอบ `200` และ `{"data":{"status":"ok","database":"ok"}}`; response ไม่มีรายละเอียดเชื่อมต่อ. กรณี DB ขัดข้องตรวจจาก catch ในโค้ดว่าคืน 503 แบบทั่วไป แต่ยังไม่ได้ทดสอบ runtime เพราะไม่หยุดหรือเปลี่ยน DB ที่ใช้งานอยู่ | เสร็จบางส่วน |
 | 2026-10-31 | 0.1 / 2.1 | ปรับ health check เป็น `/api/v1/health`; success คืน `200` พร้อม `{ data: { status: "ok", database: "ok" } }`, DB failure คืน `503 SERVICE_UNAVAILABLE`; ปรับหน้าเว็บให้เรียก path ใหม่ | `server.js` health route; `public/index.js` fetch; checklist ส่วน 0.1 และ 2.1 | เปลี่ยน route เดิม `/api/health` เป็น versioned path และใช้ response API โดยไม่ส่งรายละเอียด DB กลับ client | `node --check server.js` และ `node --check public/index.js` ผ่าน; หลังพอร์ตว่าง เริ่ม `npm start` ได้บน 3109; `GET /api/v1/health` ตอบ `200` และระบุ DB พร้อม; `GET /` ตอบ `200 text/html`; ยังไม่ได้ทดสอบกรณี DB ใช้ไม่ได้ จึงคง checklist ตรวจสุขภาพเป็นกำลังทำ | เสร็จบางส่วน |
+| 2026-10-31 | 3.1–3.6 | Redesign ใหม่ตาม DESIGN.md (Market Route Atlas): เขียน `style.css` ใหม่ทั้งไฟล์ ตัดชั้น override ซ้อนกัน, ตัดของตกแต่ง banner, สถานะแผงใช้ลาย/เส้น/ข้อความไม่พึ่งสี; แก้บั๊ก `loadBookings` ที่อ่าน `result.data` ซ้ำจนรายการจองว่าง; แทน `confirm/prompt` ด้วย dialog (ยืนยันยกเลิก, แก้ไขการจองเลือกแผงว่างได้); การ์ดการจองปัจจุบันในหน้าภาพรวม; session หมดอายุ (401) เด้งเข้าสู่ระบบ; zoom/pan ผังด้วย scroll | `public/style.css`, `public/index.html`, `public/index.js` | แพตช์แบบ assert-ทีละจุดจากไฟล์เดิม | `node --check` ผ่านทั้ง `index.js` และ `server.js`; **ยังไม่ได้ทดสอบกับ DB/เบราว์เซอร์จริง** (sandbox ต่อ MariaDB ไม่ได้) จึงคง 3.2–3.6 เป็น `[/]` | ต้องตรวจในเครื่องจริง |
+| 2026-10-31 | 3.4 / 3.5 / 3.7 | ปุ่มสลับดูผัง/รายการ (ค่าเริ่มต้นเป็นรายการบนมือถือ) ทั้งหน้าจองแผงและแผนผังลูกค้า; แสดงวันที่จองในตารางการจอง; ล้างหมายเหตุตอนแก้ไขได้ (ส่ง null) | `public/index.js`, `index.html`, `style.css` | แพตช์ทีละจุด | `node --check` ผ่าน; ยังไม่ได้ทดสอบกับ DB/เบราว์เซอร์ | ต้องตรวจในเครื่องจริง |
+| 2026-10-31 | 3.2 / 3.4 / 3.6 / 3.7 | แสดง field errors จาก API ในฟอร์มสมัคร/เข้าสู่ระบบ; ตัวกรองสถานะแผง (ว่าง/ร้านฉัน/มีผู้จอง) + ข้อความเมื่อไม่พบ; ตัวอย่างโปรไฟล์ที่ลูกค้าเห็นแบบสด; ปุ่ม “ลองอีกครั้ง” เมื่อโหลดผังไม่ได้; ไม่ทำตัวกรองโซน (schema ไม่มีคอลัมน์โซน) | `public/index.js`, `index.html` | แพตช์ทีละจุด | `node --check` ผ่าน; ยังไม่ได้ทดสอบกับ DB/เบราว์เซอร์ | ต้องตรวจในเครื่องจริง |

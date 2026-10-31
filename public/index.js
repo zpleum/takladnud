@@ -1,10 +1,98 @@
-﻿const API = "/api/v1";
-const state = { user: null, shop: null, csrfToken: "", sessions: [], sessionId: "", publicSessionId: "", requestedPublicSession: "", pendingPage: "", stalls: [], selected: new Set(), zoom: 1, page: 1, totalPages: 0, totalBookings: 0, authMode: "login", publicTimer: null };
+const API = "/api/v1";
+const state = { user: null, shop: null, csrfToken: "", sessions: [], sessionId: "", publicSessionId: "", requestedPublicSession: "", pendingPage: "", stalls: [], selected: new Set(), zoom: 1, page: 1, totalPages: 0, totalBookings: 0, authMode: "login", publicTimer: null, publicShops: [], randomShopId: "" };
 const statusEl = document.querySelector("#status");
 const toastRegion = document.querySelector("#toast-region");
 const authDialog = document.querySelector("#auth-dialog");
 const money = new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB", maximumFractionDigits: 0 });
 const byId = (id) => document.getElementById(id);
+
+function setupCustomSelect(select) {
+  if (select.dataset.customized === "true") {
+    refreshCustomSelect(select);
+    return;
+  }
+  select.dataset.customized = "true";
+  const wrapper = document.createElement("div");
+  wrapper.className = "custom-select";
+  wrapper.setAttribute("data-custom-select", select.id || "");
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "custom-select-trigger";
+  trigger.setAttribute("aria-haspopup", "listbox");
+  trigger.setAttribute("aria-expanded", "false");
+  const menu = document.createElement("div");
+  menu.className = "custom-select-menu";
+  menu.setAttribute("role", "listbox");
+  select.parentNode.insertBefore(wrapper, select);
+  wrapper.append(select, trigger, menu);
+
+  const close = () => {
+    wrapper.classList.remove("open");
+    trigger.setAttribute("aria-expanded", "false");
+  };
+  trigger.addEventListener("click", () => {
+    document.querySelectorAll(".custom-select.open").forEach((open) => {
+      if (open !== wrapper) open.classList.remove("open");
+    });
+    const opening = !wrapper.classList.contains("open");
+    wrapper.classList.toggle("open", opening);
+    trigger.setAttribute("aria-expanded", String(opening));
+  });
+  trigger.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      trigger.click();
+      menu.querySelector(".custom-select-option")?.focus();
+    }
+  });
+  menu.addEventListener("click", (event) => {
+    const option = event.target.closest("[data-select-value]");
+    if (!option) return;
+    select.value = option.dataset.selectValue;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    refreshCustomSelect(select);
+    close();
+    trigger.focus();
+  });
+  menu.addEventListener("keydown", (event) => {
+    const options = [...menu.querySelectorAll(".custom-select-option")];
+    const current = options.indexOf(document.activeElement);
+    if (event.key === "Escape") { close(); trigger.focus(); }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const next = event.key === "ArrowDown" ? Math.min(current + 1, options.length - 1) : Math.max(current - 1, 0);
+      options[next]?.focus();
+    }
+    if (event.key === "Enter") document.activeElement?.click();
+  });
+  select.addEventListener("change", () => refreshCustomSelect(select));
+  new MutationObserver(() => refreshCustomSelect(select)).observe(select, { childList: true, subtree: true, attributes: true, attributeFilter: ["selected"] });
+  refreshCustomSelect(select);
+}
+
+function refreshCustomSelect(select) {
+  const wrapper = select.closest(".custom-select");
+  if (!wrapper) return;
+  const trigger = wrapper.querySelector(".custom-select-trigger");
+  const menu = wrapper.querySelector(".custom-select-menu");
+  const options = [...select.options];
+  const selected = options.find((option) => option.value === select.value) || options[0];
+  trigger.textContent = selected?.textContent || "เลือก";
+  menu.innerHTML = options.map((option) => `<button type="button" role="option" class="custom-select-option${option.selected ? " selected" : ""}" data-select-value="${escapeHtml(option.value)}" aria-selected="${option.value === select.value}"${option.disabled ? " disabled" : ""}>${escapeHtml(option.textContent)}</button>`).join("");
+}
+
+document.addEventListener("click", (event) => {
+  if (!event.target.closest(".custom-select")) {
+    document.querySelectorAll(".custom-select.open").forEach((wrapper) => {
+      wrapper.classList.remove("open");
+      wrapper.querySelector(".custom-select-trigger")?.setAttribute("aria-expanded", "false");
+    });
+  }
+});
+
+function setupAllCustomSelects(root = document) {
+  root.querySelectorAll("select").forEach(setupCustomSelect);
+}
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -26,9 +114,11 @@ async function request(path, options = {}) {
     try { state.totalPages = JSON.parse(response.headers.get("X-Pagination")).totalPages || 0; } catch { state.totalPages = 0; }
   }
   if (!response.ok) {
+    if (response.status === 401 && state.user && !path.startsWith("/auth/")) { state.user = null; state.csrfToken = ""; toast("เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"); openAuth("login"); }
     const error = new Error(result.error?.message || "เกิดข้อผิดพลาด กรุณาลองอีกครั้ง");
     error.status = response.status;
     error.code = result.error?.code;
+    error.fields = result.error?.fields || {};
     throw error;
   }
   return result.data;
@@ -67,11 +157,13 @@ function renderAuthFields() {
 function setPage(page) {
   const target = document.querySelector(`[data-page="${page}"]`);
   if (!target) page = "home";
-  if (["stalls", "bookings", "profile"].includes(page) && !state.user) {
+  if (["stalls", "bookings", "profile"].includes(page) && state.user?.role === "admin") page = "admin";
+  if (["stalls", "bookings", "profile", "admin"].includes(page) && !state.user) {
     state.pendingPage = page;
     openAuth("login");
     page = "home";
   }
+  if (page === "admin" && state.user?.role !== "admin") page = "home";
   document.querySelectorAll("[data-page]").forEach((section) => { section.hidden = section.dataset.page !== page; });
   document.querySelectorAll(".nav-link").forEach((link) => link.classList.toggle("active", link.dataset.view === page));
   const hash = page === "bookings" ? "my-bookings" : page === "market" ? "market-map" : page;
@@ -85,14 +177,43 @@ function setPage(page) {
   if (page === "stalls") loadMarketData();
   if (page === "market") loadPublicMarket();
   if (page === "profile") loadProfile();
+  if (page === "admin") loadAdmin();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function navFromHash() {
   const [hash, query = ""] = location.hash.slice(1).split("?", 2);
   state.requestedPublicSession = new URLSearchParams(query).get("session") || "";
-  const page = hash === "my-bookings" ? "bookings" : hash === "market-map" ? "market" : hash === "stalls" ? "stalls" : hash === "profile" ? "profile" : "home";
+  const page = hash === "my-bookings" ? "bookings" : hash === "market-map" ? "market" : hash === "stalls" ? "stalls" : hash === "profile" ? "profile" : hash === "admin" ? "admin" : "home";
   setPage(page);
+}
+
+async function loadAdmin() {
+  if (state.user?.role !== "admin") return;
+  byId("admin-content").innerHTML = '<p>กำลังโหลดข้อมูล...</p>';
+  let summary, users, markets;
+  try {
+    [summary, users, markets] = await Promise.all([
+      request("/admin/summary"),
+      request("/admin/users"),
+      request("/admin/markets"),
+    ]);
+  } catch (error) {
+    byId("admin-content").innerHTML = `<p class="empty-note">${escapeHtml(error.message || "โหลดข้อมูลผู้ดูแลไม่สำเร็จ")}</p>`;
+    return;
+  }
+  byId("admin-stats").innerHTML = [
+    ["ผู้ใช้", summary.users], ["ตลาด", summary.markets], ["ร้านค้า", summary.shops], ["การจอง", summary.bookings],
+  ].map(([label, value]) => `<article class="stat-card"><div><span class="stat-label">${label}</span><strong>${escapeHtml(String(value))}</strong></div></article>`).join("");
+  const marketOptions = markets.map((market) => `<option value="${escapeHtml(market.id)}">${escapeHtml(market.name)}</option>`).join("");
+  byId("admin-content").innerHTML = `
+    <div class="admin-grid">
+      <section><h3>ผู้ใช้</h3><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>บทบาท</th><th>สถานะ</th></tr></thead><tbody>${users.map((user) => `<tr><td>${escapeHtml(user.name || user.email)}</td><td><select data-admin-user-role="${escapeHtml(user.id)}"><option value="customer"${user.role === "customer" ? " selected" : ""}>ลูกค้า</option><option value="shop"${user.role === "shop" ? " selected" : ""}>ร้านค้า</option><option value="admin"${user.role === "admin" ? " selected" : ""}>แอดมิน</option></select></td><td><select data-admin-user-status="${escapeHtml(user.id)}">      <option value="active"${user.status === "active" ? " selected" : ""}>ใช้งาน</option><option value="disabled"${user.status === "disabled" ? " selected" : ""}>ระงับ</option></select></td></tr>`).join("")}</tbody></table></div></section>
+      <section><h3>ตลาด</h3><div class="table-wrap"><table><thead><tr><th>ตลาด</th><th>สถานะ</th></tr></thead><tbody>${markets.map((market) => `<tr><td>${escapeHtml(market.name)}</td><td><select data-admin-market-status="${escapeHtml(market.id)}"><option value="active"${market.status === "active" ? " selected" : ""}>เปิด</option><option value="inactive"${market.status === "inactive" ? " selected" : ""}>ปิด</option></select></td></tr>`).join("")}</tbody></table></div></section>
+    </div>`;
+  document.querySelectorAll("[data-admin-user-role]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/users/${select.dataset.adminUserRole}`, { method: "PATCH", body: JSON.stringify({ role: select.value }) }); toast("อัปเดตบทบาทแล้ว"); }));
+  document.querySelectorAll("[data-admin-user-status]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/users/${select.dataset.adminUserStatus}`, { method: "PATCH", body: JSON.stringify({ status: select.value }) }); toast("อัปเดตสถานะแล้ว"); }));
+  document.querySelectorAll("[data-admin-market-status]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/markets/${select.dataset.adminMarketStatus}`, { method: "PATCH", body: JSON.stringify({ status: select.value }) }); toast("อัปเดตตลาดแล้ว"); }));
 }
 
 function renderMiniStalls(stalls = []) {
@@ -138,9 +259,30 @@ async function logout() {
   byId("account-name").textContent = "ผู้เยี่ยมชม";
   byId("account-role").textContent = "ยังไม่ได้เข้าสู่ระบบ";
   byId("account-avatar").textContent = "ผ";
+  byId("admin-nav").hidden = true;
+  document.querySelectorAll('[data-view="stalls"], [data-view="bookings"], [data-view="profile"]').forEach((link) => { link.hidden = false; });
   state.pendingPage = "";
+  byId("current-booking").hidden = true;
+  syncAccountMenu();
   toast("ออกจากระบบแล้ว");
   setPage("home");
+}
+
+function closeAccountMenu() {
+  const menu = byId("account-menu");
+  menu.hidden = true;
+  byId("account-button").setAttribute("aria-expanded", "false");
+  document.querySelector(".account-menu-wrap")?.classList.remove("open");
+}
+
+function syncAccountMenu() {
+  const menu = byId("account-menu");
+  const loggedIn = Boolean(state.user);
+  menu.querySelector('[data-account-action="profile"]').hidden = !loggedIn || state.user?.role === "admin";
+  menu.querySelector('[data-account-action="admin"]').hidden = !loggedIn || state.user?.role !== "admin";
+  menu.querySelector('[data-account-action="logout"]').hidden = !loggedIn;
+  menu.querySelector('[data-account-action="login"]').hidden = loggedIn;
+  closeAccountMenu();
 }
 
 function formatDate(value) {
@@ -195,7 +337,7 @@ function clearMarketData(message = "ยังไม่มีข้อมูล�
   });
   byId("full-map").classList.add("stall-list-mode");
   byId("full-map").style.backgroundImage = "none";
-  byId("full-map").innerHTML = `<p class="empty-note">${escapeHtml(message)}</p>`;
+  byId("full-map").innerHTML = `<p class="empty-note">${escapeHtml(message)}</p> <button class="button button-outline" type="button" data-action="retry">ลองอีกครั้ง</button>`;
   byId("mini-map").style.backgroundImage = "none";
   byId("stall-map-title").textContent = "แผนผังแผงร้านค้า";
   byId("map-message").textContent = message;
@@ -213,7 +355,7 @@ function statusClass(status) {
 function renderBookingsPage() {
   const rows = byId("booking-table");
   const filtered = state.bookings;
-  rows.innerHTML = '<div class="booking-table-row header"><span>แผง / รอบตลาด</span><span>วันตลาด</span><span>สถานะ</span><span>ค่าเช่า</span><span>จัดการ</span></div>' + (filtered.length ? filtered.map((item) => `<div class="booking-table-row"><strong>แผง ${escapeHtml(item.stallCode || item.stall_code || "—")}<small>${escapeHtml(item.sessionName || item.session_name || "รอบตลาด")}</small></strong><span>${escapeHtml(formatDate(item.startsAt || item.starts_at))}</span><span class="status-badge ${statusClass(item.status)}">${statusLabel(item.status)}</span><strong>${money.format(Number(item.priceAtBooking ?? item.price_at_booking ?? 0))}</strong><div class="row-actions">${["confirmed", "pending"].includes(item.status) ? `<button class="small-action" data-booking-action="edit" data-booking-id="${escapeHtml(item.id)}">แก้ไข</button>` : ""}${item.status !== "cancelled" ? `<button class="small-action danger" data-booking-action="cancel" data-booking-id="${escapeHtml(item.id)}">ยกเลิก</button>` : ""}</div></div>`).join("") : '<p class="empty-note">ไม่พบรายการจองในตัวกรองนี้</p>');
+  rows.innerHTML = '<div class="booking-table-row header"><span>แผง / รอบตลาด</span><span>วันตลาด</span><span>สถานะ</span><span>ค่าเช่า</span><span>จัดการ</span></div>' + (filtered.length ? filtered.map((item) => `<div class="booking-table-row"><strong>แผง ${escapeHtml(item.stallCode || item.stall_code || "—")}<small>${escapeHtml(item.sessionName || item.session_name || "รอบตลาด")} · จองเมื่อ ${escapeHtml(formatDate(item.createdAt))}</small></strong><span>${escapeHtml(formatDate(item.startsAt || item.starts_at))} ${escapeHtml(formatTime(item.startsAt || item.starts_at))} น.</span><span class="status-badge ${statusClass(item.status)}">${statusLabel(item.status)}</span><strong>${money.format(Number(item.priceAtBooking ?? item.price_at_booking ?? 0))}</strong><div class="row-actions">${["confirmed", "pending"].includes(item.status) ? `<button class="small-action" data-booking-action="edit" data-booking-id="${escapeHtml(item.id)}">แก้ไข</button>` : ""}${item.status !== "cancelled" ? `<button class="small-action danger" data-booking-action="cancel" data-booking-id="${escapeHtml(item.id)}">ยกเลิก</button>` : ""}</div></div>`).join("") : '<p class="empty-note">ไม่พบรายการจองในตัวกรองนี้</p>');
   const pagination = byId("booking-pagination");
   if (state.totalPages <= 1) { pagination.innerHTML = ""; return; }
   pagination.innerHTML = `<button type="button" data-booking-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""} aria-label="หน้าก่อนหน้า">ก่อนหน้า</button><span aria-live="polite">หน้า ${state.page} จาก ${state.totalPages}</span><button type="button" data-booking-page="${state.page + 1}" ${state.page >= state.totalPages ? "disabled" : ""} aria-label="หน้าถัดไป">ถัดไป</button>`;
@@ -227,7 +369,7 @@ async function loadBookings() {
     if (status) query.set("status", status);
     if (byId("booking-session-filter").value) query.set("sessionId", byId("booking-session-filter").value);
     const result = await request(`/bookings?${query}`);
-    const list = result.data || [];
+    const list = result || [];
     if (state.page > state.totalPages) {
       state.page = state.totalPages || 1;
       if (state.page !== Number(query.get("page"))) return loadBookings();
@@ -254,6 +396,9 @@ async function loadDashboard() {
       state.totalBookings = Number(result.confirmedCount);
       document.querySelectorAll(".stat-card strong")[2].textContent = String(result.confirmedCount);
     }
+    const cb = result?.currentBooking, box = byId("current-booking");
+    box.hidden = false;
+    box.innerHTML = cb ? `<span class="status-badge status-confirmed">การจองที่ใกล้ที่สุด</span><strong>แผง ${escapeHtml(cb.stallCode)}</strong><span>${escapeHtml(cb.sessionName)} · ${escapeHtml(formatDate(cb.startsAt))} ${escapeHtml(formatTime(cb.startsAt))} น.</span>` : "<strong>ยังไม่มีแผงที่ยืนยันสำหรับรอบถัดไป</strong><span>เลือกแผงว่าง แล้วกดยืนยัน ระบบจะจองให้ทันที</span>";
     if (result?.recentBookings) renderBookings(result.recentBookings);
   } catch (error) {
     if (error.status === 401) { state.user = null; return; }
@@ -270,7 +415,15 @@ async function loadSessions(selectId, publicMode = false) {
     const markets = marketPayload.data;
     const marketList = markets || [];
     if (!marketList.length) throw new Error("ยังไม่มีตลาดที่เปิดให้บริการ");
-    const market = marketList[0];
+    const publicMarketSelect = byId("public-market-select");
+    if (publicMode && publicMarketSelect) {
+      publicMarketSelect.innerHTML = marketList.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`).join("");
+      if (publicMarketSelect.dataset.selected && marketList.some((item) => String(item.id) === publicMarketSelect.dataset.selected)) publicMarketSelect.value = publicMarketSelect.dataset.selected;
+      publicMarketSelect.dataset.selected = publicMarketSelect.value;
+    }
+    const market = publicMode && publicMarketSelect?.value
+      ? marketList.find((item) => String(item.id) === String(publicMarketSelect.value)) || marketList[0]
+      : marketList[0];
     state.market = market;
     const sessionResponse = await fetch(`${API}/markets/${encodeURIComponent(market.id)}/sessions?from=${encodeURIComponent(new Date().toISOString().slice(0, 10))}`);
     const sessionPayload = await sessionResponse.json().catch(() => ({}));
@@ -286,7 +439,9 @@ async function loadSessions(selectId, publicMode = false) {
     select.innerHTML = list.map((session) => `<option value="${escapeHtml(session.id)}">${escapeHtml(session.name)} · ${escapeHtml(formatDate(session.startsAt || session.starts_at))}</option>`).join("");
     if (publicMode) {
       const desired = state.requestedPublicSession || state.publicSessionId;
-      state.publicSessionId = list.some((item) => String(item.id) === String(desired)) ? String(desired) : String(list[0].id);
+      const found = list.some((item) => String(item.id) === String(desired));
+      if (state.requestedPublicSession && !found) toast("ไม่พบรอบตลาดจากลิงก์หรือ QR นี้ จึงแสดงรอบล่าสุดแทน");
+      state.publicSessionId = found ? String(desired) : String(list[0].id);
       select.value = state.publicSessionId;
       state.requestedPublicSession = "";
     } else {
@@ -349,7 +504,19 @@ async function loadMap(sessionId, publicMode = false) {
     const miniMap = byId("mini-map");
     miniMap.style.backgroundImage = market.mapImage ? `url("${String(market.mapImage).replace(/["\\]/g, "")}")` : "";
   }
+  if (!publicMode) applyStallFilter();
   return data;
+}
+
+function applyStallFilter() {
+  const q = byId("stall-search").value.trim().toLowerCase(), st = byId("stall-status").value;
+  document.querySelectorAll("#full-map .map-stall").forEach((n) => {
+    const mine = n.classList.contains("mine"), av = n.dataset.availability;
+    const okStatus = !st || (st === "available" && av === "available") || (st === "mine" && mine) || (st === "booked" && av !== "available" && !mine);
+    n.hidden = !(okStatus && (!q || n.dataset.code.toLowerCase().includes(q)));
+  });
+  const shown = document.querySelectorAll("#full-map .map-stall:not([hidden])").length;
+  if (q || st) byId("map-message").textContent = shown ? `แสดง ${shown} แผงตามตัวกรอง` : "ไม่พบแผงตามตัวกรอง ลองล้างคำค้นหาหรือเลือก \"ทุกสถานะ\"";
 }
 
 async function loadMarketData() {
@@ -375,7 +542,7 @@ function renderSelection() {
 async function loadPublicMarket() {
   const sessions = await loadSessions("public-session-select", true);
   if (!sessions.length) {
-    byId("public-map").innerHTML = `<p class="empty-note">${escapeHtml(byId("public-session-select").options[0]?.textContent || "ยังไม่มีรอบตลาดที่เปิดให้แสดง")}</p>`;
+    byId("public-map").innerHTML = `<p class="empty-note">${escapeHtml(byId("public-session-select").options[0]?.textContent || "ยังไม่มีรอบตลาดที่เปิดให้แสดง")}</p> <button class="button button-outline" type="button" data-action="retry">ลองอีกครั้ง</button>`;
     byId("public-map").classList.add("stall-list-mode");
     byId("public-map").style.backgroundImage = "none";
     byId("public-map-title").textContent = "ไม่มีข้อมูลรอบตลาด";
@@ -391,6 +558,8 @@ async function refreshPublic() {
   const sessionId = byId("public-session-select").value;
   if (!sessionId) return;
   state.publicSessionId = sessionId;
+  state.publicShops = [];
+  state.randomShopId = "";
   try {
     await loadMap(sessionId, true);
     const query = new URLSearchParams({ page: "1", limit: "100", sort: "stallCode" });
@@ -400,9 +569,15 @@ async function refreshPublic() {
     if (category) query.set("categoryId", category);
     const result = await request(`/public/sessions/${encodeURIComponent(sessionId)}/shops?${query}`);
     const shops = result || [];
+    state.publicShops = shops;
     byId("public-shop-count").textContent = `${shops.length} ร้าน`;
+    byId("random-shop-button").disabled = shops.length === 0;
     byId("public-shop-detail").hidden = true;
-    byId("public-shop-list").innerHTML = shops.length ? shops.map((shop) => `<button type="button" class="public-shop-card" data-public-shop-id="${escapeHtml(shop.id)}" data-stall-code="${escapeHtml(shop.stallCode || "")}"><span class="public-shop-icon" aria-hidden="true">${shop.logoImage ? `<img src="${escapeHtml(shop.logoImage)}" alt="">` : '<svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 10h18M5 10v10h14V10M4 10l2-6h12l2 6M9 20v-6h6v6"/></svg>'}</span><span><strong>${escapeHtml(shop.name)}</strong><small>${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")} · ${escapeHtml(shop.contactPhone || "ไม่ระบุเบอร์")}</small></span><span>${escapeHtml(shop.stallCode || "")}</span></button>`).join("") : '<p class="empty-note">ยังไม่พบร้าน ลองเปลี่ยนคำค้นหาหรือตัวกรอง</p>';
+    byId("public-detail-empty").hidden = false;
+    byId("public-shop-list").innerHTML = shops.length ? shops.map((shop) => {
+      const stallCodes = shop.stallCodes?.length ? shop.stallCodes : (shop.stallCode ? [shop.stallCode] : []);
+      return `<button type="button" class="public-shop-card" data-public-shop-id="${escapeHtml(shop.id)}" data-stall-codes="${escapeHtml(stallCodes.join(","))}"><span class="public-shop-icon" aria-hidden="true">${shop.logoImage ? `<img src="${escapeHtml(shop.logoImage)}" alt="">` : '<svg class="ui-icon" viewBox="0 0 24 24"><path d="M3 10h18M5 10v10h14V10M4 10l2-6h12l2 6M9 20v-6h6v6"/></svg>'}</span><span><strong>${escapeHtml(shop.name)}</strong><small>${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")} · ${escapeHtml(shop.contactPhone || "ไม่ระบุเบอร์")}</small></span><span>${escapeHtml(stallCodes.join(", "))}</span></button>`;
+    }).join("") : '<p class="empty-note">ยังไม่พบร้าน ลองเปลี่ยนคำค้นหาหรือตัวกรอง</p>';
   } catch (error) {
     byId("public-shop-list").innerHTML = `<p class="empty-note">${escapeHtml(error.message)}</p>`;
   }
@@ -431,6 +606,7 @@ async function loadProfile() {
     form.elements.namedItem("description").value = profile.description || "";
     form.elements.namedItem("contactName").value = profile.contactName || "";
     form.elements.namedItem("contactPhone").value = profile.contactPhone || "";
+    form.elements.namedItem("lineId").value = profile.lineId || "";
     form.elements.namedItem("isPublic").checked = profile.isPublic;
     const categories = new Set((profile.categories || []).map((item) => String(item.id)));
     byId("profile-categories").querySelectorAll('input[name="categoryIds"]').forEach((input) => { input.checked = categories.has(input.value); });
@@ -439,6 +615,7 @@ async function loadProfile() {
     preview.src = profile.logoImage || "";
     byId("profile-logo-placeholder").hidden = Boolean(profile.logoImage);
     byId("profile-message").textContent = "";
+    renderPreview();
   } catch (error) {
     byId("profile-message").textContent = error.message;
     if (error.status === 401) { state.user = null; openAuth("login"); }
@@ -454,6 +631,7 @@ async function saveProfile(event) {
     description: data.get("description"),
     contactName: String(data.get("contactName") || "").trim() || null,
     contactPhone: data.get("contactPhone"),
+    lineId: String(data.get("lineId") || "").trim() || null,
     isPublic: data.has("isPublic"),
     categoryIds: data.getAll("categoryIds"),
   };
@@ -506,16 +684,67 @@ async function showQr() {
 async function showPublicShop(button) {
   const sessionId = byId("public-session-select").value;
   const panel = byId("public-shop-detail");
+  const shopId = String(button.dataset.publicShopId || "");
+  state.selectedPublicShopId = shopId;
+  const card = [...byId("public-shop-list").querySelectorAll("[data-public-shop-id]")]
+    .find((item) => String(item.dataset.publicShopId) === shopId);
+  if (card) {
+    document.querySelectorAll(".public-shop-card[data-public-shop-id]").forEach((shopCard) => {
+      shopCard.classList.toggle("active", shopCard === card);
+      shopCard.setAttribute("aria-pressed", String(shopCard === card));
+    });
+  }
+  byId("public-detail-empty").hidden = true;
   panel.hidden = false;
   panel.textContent = "กำลังโหลดข้อมูลร้าน...";
   try {
     const shop = await request(`/public/sessions/${encodeURIComponent(sessionId)}/shops/${encodeURIComponent(button.dataset.publicShopId)}`);
+    if (state.selectedPublicShopId !== String(shop.id)) return;
+    document.querySelectorAll(".public-shop-card[data-public-shop-id]").forEach((shopCard) => {
+      const selected = String(shopCard.dataset.publicShopId) === String(shop.id);
+      shopCard.classList.toggle("active", selected);
+      shopCard.setAttribute("aria-pressed", String(selected));
+    });
     const phone = shop.contactPhone || "";
-    panel.innerHTML = `<strong>${escapeHtml(shop.name)}</strong><p>${escapeHtml(shop.description || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>แผง ${escapeHtml(shop.stallCode || "—")} · ${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")}</p>${phone ? `<a href="tel:${escapeHtml(phone)}">โทร ${escapeHtml(phone)}</a>` : "<span>ร้านนี้ยังไม่ได้ระบุเบอร์ติดต่อ</span>"}`;
-    byId("public-map").querySelectorAll(".map-stall").forEach((stall) => stall.classList.toggle("selected", stall.dataset.code === button.dataset.stallCode));
+    const reviews = await request(`/shops/${encodeURIComponent(shop.id)}/reviews`);
+    const lineLink = shop.lineId ? (shop.lineId.startsWith("http") ? shop.lineId : `https://line.me/R/ti/p/${encodeURIComponent(shop.lineId.replace(/^@/, ""))}`) : "";
+    const lineId = String(shop.lineId || "").trim();
+    const contactActions = `${phone ? `<a class="shop-contact-button shop-phone-button" href="tel:${escapeHtml(phone)}">โทร ${escapeHtml(phone)}</a>` : "<span>ร้านนี้ยังไม่ได้ระบุเบอร์ติดต่อ</span>"}${lineLink ? `<a class="shop-contact-button shop-line-button" href="${escapeHtml(lineLink)}" target="_blank" rel="noopener noreferrer">แอดไลน์ ${escapeHtml(lineId)}</a>` : ""}`;
+    const reviewList = reviews.reviews?.length ? reviews.reviews.map((review) => `<article class="shop-review-item"><div class="shop-review-head"><strong>${escapeHtml(review.reviewerName || "ผู้เยี่ยมชม")}</strong><span>${formatDate(review.createdAt)}</span></div><div class="review-stars" aria-label="${review.rating} จาก 5 ดาว">${"★".repeat(Number(review.rating))}<span>${"☆".repeat(5 - Number(review.rating))}</span></div>${review.comment ? `<p>${escapeHtml(review.comment)}</p>` : ""}</article>`).join("") : '<p class="empty-note">ยังไม่มีรีวิว เป็นคนแรกที่ให้คะแนนร้านนี้</p>';
+    const stallCodesLabel = (shop.stallCodes?.length ? shop.stallCodes : (shop.stallCode ? [shop.stallCode] : [])).join(" · ");
+    panel.innerHTML = `<strong>${escapeHtml(shop.name)}</strong><p>${escapeHtml(shop.description || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>แผง ${escapeHtml(stallCodesLabel || "—")} · ${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")}</p><div class="shop-rating-summary"><span class="shop-rating-score">${reviews.count ? escapeHtml(String(reviews.average)) : "—"}</span><span><span class="review-stars">${"★".repeat(Math.round(Number(reviews.average) || 0))}<span>${"☆".repeat(5 - Math.round(Number(reviews.average) || 0))}</span></span><small>${reviews.count ? `จาก ${reviews.count} รีวิว` : "ยังไม่มีคะแนน"}</small></span></div><div class="shop-contact-actions">${contactActions}</div><section class="shop-reviews"><div class="shop-reviews-heading"><h3>รีวิวจากลูกค้า</h3></div><div class="shop-review-list">${reviewList}</div></section><form id="shop-review-form" class="shop-review-form"><h3>ให้คะแนนร้านนี้</h3><label>ชื่อ<input name="reviewerName" maxlength="80" value="ผู้เยี่ยมชม" required></label><fieldset class="star-rating"><legend>คะแนน</legend><div>${[5,4,3,2,1].map((rating) => `<input type="radio" name="rating" id="rating-${rating}" value="${rating}"${rating === 5 ? " checked" : ""}><label for="rating-${rating}" aria-label="${rating} ดาว">★</label>`).join("")}</div></fieldset><label>ความคิดเห็น<textarea name="comment" maxlength="1000" rows="3" placeholder="เล่าประสบการณ์ที่นี่ (ไม่บังคับ)"></textarea></label><button class="button button-outline" type="submit">ส่งรีวิว</button></form>`;
+    byId("shop-review-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      try {
+        await request(`/shops/${encodeURIComponent(shop.id)}/reviews`, { method: "POST", body: JSON.stringify({ reviewerName: form.get("reviewerName"), rating: Number(form.get("rating")), comment: form.get("comment") }) });
+        toast("ขอบคุณสำหรับรีวิว");
+        showPublicShop(button);
+      } catch (error) { toast(error.message); }
+    });
+    byId("public-map").querySelectorAll(".map-stall").forEach((stall) => {
+      stall.classList.toggle("selected", String(stall.dataset.publicShopId) === String(shop.id));
+      stall.setAttribute("aria-pressed", String(String(stall.dataset.publicShopId) === String(shop.id)));
+    });
   } catch (error) {
     panel.textContent = error.message;
   }
+
+}
+
+async function pickRandomShop() {
+  const shops = state.publicShops;
+  if (!shops.length) return toast("ยังไม่มีร้านให้สุ่มในรอบตลาดนี้");
+  let candidates = shops;
+  if (shops.length > 1) candidates = shops.filter((shop) => String(shop.id) !== String(state.randomShopId));
+  const shop = candidates[Math.floor(Math.random() * candidates.length)];
+  state.randomShopId = String(shop.id);
+  const button = document.createElement("button");
+  button.dataset.publicShopId = String(shop.id);
+  button.dataset.stallCode = shop.stallCode || "";
+  await showPublicShop(button);
+  document.querySelectorAll(".public-shop-card[data-public-shop-id]").forEach((card) => card.classList.toggle("active", card.dataset.publicShopId === String(shop.id)));
+  document.querySelector(`.public-shop-card[data-public-shop-id="${CSS.escape(String(shop.id))}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 async function submitAuth(event) {
@@ -531,21 +760,29 @@ async function submitAuth(event) {
     state.user = user.user || user;
     state.shop = user.shop || null;
     authDialog.close();
-    const shopName = state.shop?.name || payload.shopName || "ยังไม่มีชื่อร้าน";
+    const admin = state.user.role === "admin";
+    const shopName = admin ? "ผู้ดูแลระบบ" : state.shop?.name || payload.shopName || "ยังไม่มีชื่อร้าน";
     byId("account-name").textContent = shopName;
-    byId("account-role").textContent = "บัญชีร้านค้า";
+    byId("account-role").textContent = admin ? "ผู้ดูแลระบบ" : "บัญชีร้านค้า";
     byId("account-avatar").textContent = shopName.slice(0, 1);
+    byId("admin-nav").hidden = !admin;
+    document.querySelectorAll('[data-view="stalls"], [data-view="bookings"], [data-view="profile"]').forEach((link) => { link.hidden = admin; });
+    syncAccountMenu();
     toast(register ? "สมัครร้านค้าสำเร็จ" : "เข้าสู่ระบบสำเร็จ");
-    await loadDashboard();
-    await loadBookings();
+    if (!admin) {
+      await loadDashboard();
+      await loadBookings();
+    }
+    await loadMarketData();
     renderSelection();
+    if (admin) setPage(state.pendingPage === "admin" ? "admin" : "admin");
     if (state.pendingPage) {
       const page = state.pendingPage;
       state.pendingPage = "";
       setPage(page);
     }
   } catch (error) {
-    byId("auth-message").textContent = error.message;
+    byId("auth-message").textContent = [error.message, ...Object.values(error.fields || {})].filter((v, i, a) => typeof v === "string" && a.indexOf(v) === i).join(" · ");
   } finally { byId("auth-submit").disabled = false; }
 }
 
@@ -574,39 +811,87 @@ async function confirmBooking() {
 async function bookingAction(button) {
   const id = button.dataset.bookingId;
   if (button.dataset.bookingAction === "cancel") {
-    if (!window.confirm("ยกเลิกการจองนี้หรือไม่? สามารถยกเลิกได้ทุกเวลา.")) return;
+    if (!(await askConfirm("ยกเลิกการจองนี้หรือไม่? ยกเลิกได้ทุกเวลา และแผงจะกลับมาว่างทันที", "ยกเลิกการจอง"))) return;
     try {
       await request(`/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" });
       toast("ยกเลิกการจองแล้ว");
       await loadBookings();
       await loadMarketData();
     } catch (error) { toast(error.message); }
-  } else {
+  } else openEdit(id);
+}
+
+async function openEdit(id) {
+  try {
+    const booking = await request(`/bookings/${encodeURIComponent(id)}`);
+    const data = await loadMap(booking.sessionId);
+    const free = data.stalls.filter((s) => s.availability === "available" || s.code === booking.stallCode);
+    const dialog = byId("edit-dialog");
+    dialog.dataset.bookingId = id;
+    byId("edit-stall").innerHTML = free.map((s) => `<option value="${escapeHtml(s.id)}">แผง ${escapeHtml(s.code)}${s.price ? ` · ${money.format(s.price)}` : ""}</option>`).join("");
+    byId("edit-stall").value = String(free.find((s) => s.code === booking.stallCode)?.id || "");
+    byId("edit-note").value = booking.shopNote || "";
+    byId("edit-message").textContent = "";
+    dialog.showModal();
+  } catch (error) { toast(error.message); }
+}
+
+function askConfirm(message, label) {
+  return new Promise((resolve) => {
+    const d = byId("confirm-dialog");
+    byId("confirm-text").textContent = message;
+    byId("confirm-yes").textContent = label;
+    d.returnValue = "";
+    d.addEventListener("close", () => resolve(d.returnValue === "yes"), { once: true });
+    d.showModal();
+  });
+}
+
+function renderPreview() {
+  const f = byId("profile-form"), v = (n) => f.elements.namedItem(n).value.trim();
+  const cats = [...byId("profile-categories").querySelectorAll("input:checked")].map((i) => i.nextElementSibling.textContent).join(" · ") || "ยังไม่ได้เลือกประเภท";
+  const pub = f.elements.namedItem("isPublic").checked;
+  byId("profile-preview").innerHTML = `<strong>${escapeHtml(v("name") || "ชื่อร้านของคุณ")}</strong><p>${escapeHtml(v("description") || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>${escapeHtml(cats)}</p><p>${pub ? (v("contactPhone") ? `โทร ${escapeHtml(v("contactPhone"))}` : "ยังไม่ได้ระบุเบอร์ติดต่อ") : "ปิดการแสดงผล: ลูกค้าจะไม่เห็นร้านนี้ในแผนผัง"}</p>`;
+}
+
+function bindExtra() {
+  const pf = byId("profile-form");
+  pf.addEventListener("input", renderPreview); pf.addEventListener("change", renderPreview);
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-action='retry']")) return;
+    if (!byId("market-view").hidden) loadPublicMarket(); else loadMarketData();
+  });
+  document.querySelectorAll("[data-view-toggle]").forEach((btn) => {
+    const map = byId(btn.dataset.viewToggle);
+    const sync = () => { const list = map.classList.contains("list-view"); btn.setAttribute("aria-pressed", String(list)); btn.textContent = list ? "ดูแบบผัง" : "ดูแบบรายการ"; };
+    if (matchMedia("(max-width:760px)").matches) map.classList.add("list-view");
+    sync();
+    btn.addEventListener("click", () => { map.classList.toggle("list-view"); sync(); });
+  });
+  byId("confirm-dialog").addEventListener("click", (e) => { const a = e.target.dataset?.answer; if (a) byId("confirm-dialog").close(a); });
+  byId("edit-dialog").querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => byId("edit-dialog").close()));
+  byId("edit-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const note = byId("edit-note").value.trim();
+    byId("edit-message").textContent = "กำลังบันทึก...";
     try {
-      const booking = await request(`/bookings/${encodeURIComponent(id)}`);
-      const selector = byId("session-select");
-      if ([...selector.options].some((option) => option.value === booking.sessionId)) selector.value = booking.sessionId;
-      state.sessionId = booking.sessionId;
-      await loadMap(booking.sessionId);
-      const newStall = window.prompt("ใส่รหัสแผงใหม่เพื่อเปลี่ยนการจอง", booking.stallCode || "");
-      if (!newStall) return;
-      const stall = state.stalls.find((item) => String(item.code || item.stallCode || item.stall_code).toLowerCase() === newStall.toLowerCase());
-      if (!stall || stall.availability !== "available") return toast("ไม่พบแผงว่างนี้ในรอบที่เลือก");
-      await request(`/bookings/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ stallId: stall.id }) });
+      await request(`/bookings/${encodeURIComponent(byId("edit-dialog").dataset.bookingId)}`, { method: "PATCH", body: JSON.stringify({ stallId: byId("edit-stall").value, shopNote: note || null }) });
+      byId("edit-dialog").close();
       toast("แก้ไขการจองแล้ว");
       await loadBookings();
       await loadMarketData();
-    } catch (error) { toast(error.message); }
-  }
+    } catch (error) { byId("edit-message").textContent = error.message; }
+  });
 }
 
 function bindEvents() {
   document.addEventListener("click", (event) => {
+    if (!event.target.closest(".account-menu-wrap")) closeAccountMenu();
     const nav = event.target.closest("[data-view], [data-action='navigate']");
     if (nav) {
       event.preventDefault();
       const page = nav.dataset.view || nav.dataset.target;
-      if (["stalls", "bookings"].includes(page) && !state.user) return openAuth("login");
+      if (["stalls", "bookings", "profile"].includes(page) && !state.user) { state.pendingPage = page; return openAuth("login"); }
       setPage(page);
       return;
     }
@@ -624,7 +909,8 @@ function bindEvents() {
       const id = String(stall.dataset.stallId);
       if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
       stall.classList.toggle("selected", state.selected.has(id));
-      byId("map-message").textContent = `แผง ${stall.dataset.code} ${state.selected.has(id) ? "ถูกเพิ่มในรายการเลือก" : "นำออกจากรายการเลือก"}`;
+      const info = state.stalls.find((s) => String(s.id) === id);
+      byId("map-message").textContent = `แผง ${stall.dataset.code} ${state.selected.has(id) ? "เพิ่มในรายการเลือกแล้ว" : "นำออกจากรายการเลือกแล้ว"}${info?.description ? ` · ${info.description}` : ""}`;
       renderSelection();
       return;
     }
@@ -636,9 +922,7 @@ function bindEvents() {
   authDialog.addEventListener("click", (event) => { if (event.target === authDialog) authDialog.close(); });
   byId("auth-form").addEventListener("submit", submitAuth);
   byId("profile-form").addEventListener("submit", saveProfile);
-  byId("logout-button").addEventListener("click", () => {
-    if (window.confirm("ออกจากระบบหรือไม่?")) logout();
-  });
+  byId("logout-button").addEventListener("click", async () => { if (await askConfirm("ออกจากระบบหรือไม่?", "ออกจากระบบ")) logout(); });
   byId("profile-logo").addEventListener("change", (event) => {
     const file = event.currentTarget.files[0];
     if (!file) return;
@@ -666,9 +950,32 @@ function bindEvents() {
     link.download = "takladnat-market-qr.png";
     link.click();
   });
-  byId("account-button").addEventListener("click", async () => {
-    if (!state.user) return openAuth("login");
-    setPage("profile");
+  byId("account-button").addEventListener("click", () => {
+    const menu = byId("account-menu");
+    if (!menu.hidden) return closeAccountMenu();
+    syncAccountMenu();
+    menu.hidden = false;
+    byId("account-button").setAttribute("aria-expanded", "true");
+    document.querySelector(".account-menu-wrap")?.classList.add("open");
+    menu.querySelector('[role="menuitem"]:not([hidden])')?.focus();
+  });
+  byId("account-menu").addEventListener("click", async (event) => {
+    const action = event.target.closest("[data-account-action]")?.dataset.accountAction;
+    if (!action) return;
+    closeAccountMenu();
+    if (action === "login") openAuth("login");
+    if (action === "profile") setPage("profile");
+    if (action === "admin") setPage("admin");
+    if (action === "logout" && await askConfirm("ออกจากระบบหรือไม่?", "ออกจากระบบ")) await logout();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !byId("account-menu").hidden) {
+      closeAccountMenu();
+      byId("account-button").focus();
+    }
+  });
+  byId("admin-logout-button").addEventListener("click", async () => {
+    if (await askConfirm("ออกจากระบบหรือไม่?", "ออกจากระบบ")) await logout();
   });
   byId("session-select").addEventListener("change", async (event) => { state.sessionId = event.target.value; state.selected.clear(); await loadMap(state.sessionId); renderSelection(); });
   byId("public-session-select").addEventListener("change", () => {
@@ -686,18 +993,51 @@ function bindEvents() {
     if (Number.isInteger(page) && page >= 1 && page <= state.totalPages) { state.page = page; loadBookings(); }
   });
   byId("confirm-booking").addEventListener("click", confirmBooking);
-  byId("zoom-in").addEventListener("click", () => { state.zoom = Math.min(1.4, state.zoom + .1); byId("full-map").style.transform = `scale(${state.zoom})`; });
-  byId("zoom-out").addEventListener("click", () => { state.zoom = Math.max(.8, state.zoom - .1); byId("full-map").style.transform = `scale(${state.zoom})`; });
-  byId("stall-search").addEventListener("input", (event) => { const value = event.target.value.toLowerCase(); document.querySelectorAll("#full-map .map-stall").forEach((node) => { node.hidden = value && !node.dataset.code.toLowerCase().includes(value); }); });
+  byId("zoom-in").addEventListener("click", () => { state.zoom = Math.min(2.5, state.zoom + .25); byId("full-map").style.width = `${state.zoom * 100}%`; });
+  byId("zoom-out").addEventListener("click", () => { state.zoom = Math.max(1, state.zoom - .25); byId("full-map").style.width = `${state.zoom * 100}%`; });
+  byId("stall-search").addEventListener("input", applyStallFilter);
+  byId("stall-status").addEventListener("change", applyStallFilter);
   byId("public-search").addEventListener("input", () => { clearTimeout(state.publicTimer); state.publicTimer = setTimeout(refreshPublic, 250); });
   byId("category-filter").addEventListener("change", refreshPublic);
+  byId("random-shop-button").addEventListener("click", pickRandomShop);
   window.addEventListener("hashchange", navFromHash);
 }
 
 async function start() {
   bindEvents();
+  bindExtra();
+  syncAccountMenu();
+  setupAllCustomSelects();
+  new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      mutation.addedNodes.forEach((node) => {
+        if (!(node instanceof Element)) return;
+        if (node.matches("select")) setupCustomSelect(node);
+        setupAllCustomSelects(node);
+      });
+    }
+  }).observe(document.body, { childList: true, subtree: true });
+  const savedTheme = localStorage.getItem("taklat-theme") || "light";
+  document.documentElement.dataset.theme = savedTheme;
+  const themeToggle = byId("theme-toggle");
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const syncTheme = () => {
+    const dark = document.documentElement.dataset.theme === "dark";
+    themeToggle.textContent = dark ? "☀" : "☾";
+    themeToggle.setAttribute("aria-label", dark ? "สลับเป็น Light mode" : "สลับเป็น Dark mode");
+    themeMeta?.setAttribute("content", dark ? "#111423" : "#ffffff");
+  };
+  syncTheme();
+  themeToggle.addEventListener("click", () => {
+    document.documentElement.dataset.theme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("taklat-theme", document.documentElement.dataset.theme);
+    syncTheme();
+  });
+  byId("public-market-select").addEventListener("change", () => {
+    byId("public-market-select").dataset.selected = byId("public-market-select").value;
+    loadPublicMarket();
+  });
   byId("recent-bookings").innerHTML = '<p class="empty-note">เข้าสู่ระบบเพื่อดูการจองของร้าน</p>';
-  navFromHash();
   try {
     const health = await fetch(`${API}/health`);
     if (!health.ok) throw new Error("ระบบยังไม่พร้อม");
@@ -712,11 +1052,19 @@ async function start() {
     state.user = data.user || data;
     state.shop = data.shop || null;
     state.csrfToken = data.csrfToken || "";
-    if (state.shop?.name) {
+    byId("admin-nav").hidden = state.user?.role !== "admin";
+    const adminSession = state.user?.role === "admin";
+    document.querySelectorAll('[data-view="stalls"], [data-view="bookings"], [data-view="profile"]').forEach((link) => { link.hidden = adminSession; });
+    if (adminSession) {
+      byId("account-name").textContent = "ผู้ดูแลระบบ";
+      byId("account-role").textContent = "ผู้ดูแลระบบ";
+      byId("account-avatar").textContent = "ผ";
+    } else if (state.shop?.name) {
       byId("account-name").textContent = state.shop.name;
       byId("account-role").textContent = "บัญชีร้านค้า";
       byId("account-avatar").textContent = state.shop.name.slice(0, 1);
     }
+    syncAccountMenu();
   } catch (error) {
     state.user = null;
     byId("account-name").textContent = "ผู้เยี่ยมชม";
@@ -724,9 +1072,11 @@ async function start() {
     byId("account-avatar").textContent = "ผ";
     document.querySelectorAll(".stat-card strong")[2].textContent = "—";
     if (error.status !== 401) showHealth(false, "ตรวจสอบบัญชีไม่สำเร็จ กรุณาโหลดหน้าใหม่");
+    syncAccountMenu();
   }
   loadCategories();
   if (state.user) { await loadDashboard(); await loadBookings(); }
+  navFromHash();
   await loadMarketData();
   if (!location.hash || location.hash === "#home") loadPublicMarket();
 }
