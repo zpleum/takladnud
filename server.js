@@ -696,4 +696,4 @@ app.use((error, _req, res, _next) => {
   sendError(res, 500, "INTERNAL_ERROR", "ระบบขัดข้อง กรุณาลองใหม่ภายหลัง");
 });
 
-app.listen(3109, () => console.log(`Server listening on port ${port}`));
+app.listen(3109, () => console.log(`Server listening on port 3109`));
