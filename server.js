@@ -1,5 +1,3 @@
-require("dotenv").config();
-
 const express = require("express");
 require("dotenv").config();
 const mysql = require("mysql2/promise");
@@ -68,7 +66,7 @@ app.use((req, res, next) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return sendError(res, 400, "INVALID_BODY", "รูปแบบข้อมูลคำขอไม่ถูกต้อง");
   next();
 });
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static("public"));
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api/v1/public/") && !allowPublicRequest(req.ip)) return sendError(res, 429, "RATE_LIMITED", "มีการเรียกดูข้อมูลบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
   if (req.path.startsWith("/api/") && req.path !== "/api/v1/health") {
@@ -699,5 +697,5 @@ app.use((error, _req, res, _next) => {
   sendError(res, 500, "INTERNAL_ERROR", "ระบบขัดข้อง กรุณาลองใหม่ภายหลัง");
 });
 
-const port = Number(process.env.PORT) || 3109;
-app.listen(3109, () => console.log(`Server listening on port ${port}`));
+const port = process.env.PORT || 3109;
+app.listen(port, () => console.log(`Server listening on port ${port}`));
