@@ -191,12 +191,13 @@ function navFromHash() {
 async function loadAdmin() {
   if (state.user?.role !== "admin") return;
   byId("admin-content").innerHTML = '<p>กำลังโหลดข้อมูล...</p>';
-  let summary, users, markets;
+  let summary, users, markets, reviews;
   try {
-    [summary, users, markets] = await Promise.all([
+    [summary, users, markets, reviews] = await Promise.all([
       request("/admin/summary"),
       request("/admin/users"),
       request("/admin/markets"),
+      request("/admin/reviews"),
     ]);
   } catch (error) {
     byId("admin-content").innerHTML = `<p class="empty-note">${escapeHtml(error.message || "โหลดข้อมูลผู้ดูแลไม่สำเร็จ")}</p>`;
@@ -210,11 +211,28 @@ async function loadAdmin() {
     <div class="admin-grid">
       <section><h3>ผู้ใช้</h3><div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>บทบาท</th><th>สถานะ</th></tr></thead><tbody>${users.map((user) => `<tr><td>${escapeHtml(user.name || user.email)}</td><td><select data-admin-user-role="${escapeHtml(user.id)}"><option value="customer"${user.role === "customer" ? " selected" : ""}>ลูกค้า</option><option value="shop"${user.role === "shop" ? " selected" : ""}>ร้านค้า</option><option value="admin"${user.role === "admin" ? " selected" : ""}>แอดมิน</option></select></td><td><select data-admin-user-status="${escapeHtml(user.id)}">      <option value="active"${user.status === "active" ? " selected" : ""}>ใช้งาน</option><option value="disabled"${user.status === "disabled" ? " selected" : ""}>ระงับ</option></select></td></tr>`).join("")}</tbody></table></div></section>
       <section><h3>ตลาด</h3><div class="table-wrap"><table><thead><tr><th>ตลาด</th><th>สถานะ</th></tr></thead><tbody>${markets.map((market) => `<tr><td>${escapeHtml(market.name)}</td><td><select data-admin-market-status="${escapeHtml(market.id)}"><option value="active"${market.status === "active" ? " selected" : ""}>เปิด</option><option value="inactive"${market.status === "inactive" ? " selected" : ""}>ปิด</option></select></td></tr>`).join("")}</tbody></table></div></section>
+      <section class="admin-reviews-section"><h3>รีวิวทั้งหมด</h3><div class="table-wrap"><table class="admin-reviews-table"><thead><tr><th>ร้าน</th><th>ชื่อผู้รีวิว</th><th>คะแนน</th><th>ความคิดเห็น</th><th>จัดการ</th></tr></thead><tbody>${reviews.map((review) => `<tr data-admin-review="${escapeHtml(review.id)}"><td>${escapeHtml(review.shopName)}</td><td><input class="admin-review-name" value="${escapeHtml(review.reviewerName)}" maxlength="80"></td><td><select class="admin-review-rating">${[1,2,3,4,5].map((rating) => `<option value="${rating}"${rating === review.rating ? " selected" : ""}>${rating} ดาว</option>`).join("")}</select></td><td><textarea class="admin-review-comment" maxlength="1000" rows="2">${escapeHtml(review.comment || "")}</textarea></td><td class="admin-review-actions"><button class="button button-outline admin-review-save" type="button">บันทึก</button><button class="button button-danger admin-review-delete" type="button">ลบ</button></td></tr>`).join("")}</tbody></table></div></section>
     </div>`;
   document.querySelectorAll("[data-admin-user-role]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/users/${select.dataset.adminUserRole}`, { method: "PATCH", body: JSON.stringify({ role: select.value }) }); toast("อัปเดตบทบาทแล้ว"); }));
   document.querySelectorAll("[data-admin-user-status]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/users/${select.dataset.adminUserStatus}`, { method: "PATCH", body: JSON.stringify({ status: select.value }) }); toast("อัปเดตสถานะแล้ว"); }));
   document.querySelectorAll("[data-admin-market-status]").forEach((select) => select.addEventListener("change", async () => { await request(`/admin/markets/${select.dataset.adminMarketStatus}`, { method: "PATCH", body: JSON.stringify({ status: select.value }) }); toast("อัปเดตตลาดแล้ว"); }));
-}
+  document.querySelectorAll("[data-admin-review]").forEach((row) => {
+    row.querySelector(".admin-review-save").addEventListener("click", async () => {
+      try {
+        await request(`/admin/reviews/${row.dataset.adminReview}`, { method: "PATCH", body: JSON.stringify({ reviewerName: row.querySelector(".admin-review-name").value, rating: Number(row.querySelector(".admin-review-rating").value), comment: row.querySelector(".admin-review-comment").value }) });
+        toast("บันทึกรีวิวแล้ว");
+      } catch (error) { toast(error.message); }
+    });
+    row.querySelector(".admin-review-delete").addEventListener("click", async () => {
+      if (!await askConfirm("ลบรีวิวนี้หรือไม่?", "รีวิวจะถูกลบออกจากร้านค้าทันที")) return;
+      try {
+        await request(`/admin/reviews/${row.dataset.adminReview}`, { method: "DELETE" });
+        row.remove();
+        toast("ลบรีวิวแล้ว");
+      } catch (error) { toast(error.message); }
+    });
+  });
+} 
 
 function renderMiniStalls(stalls = []) {
   const container = byId("mini-stalls");

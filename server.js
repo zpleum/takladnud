@@ -578,6 +578,49 @@ app.post("/api/v1/shops/:shopId/reviews", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+app.get("/api/v1/admin/reviews", auth, adminOnly, async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute("SELECT r.id,r.shop_id,r.reviewer_name,r.rating,r.comment,r.created_at,sh.name AS shop_name FROM shop_reviews r JOIN shops sh ON sh.id=r.shop_id ORDER BY r.created_at DESC,r.id DESC LIMIT 500");
+    sendData(res, rows.map((row) => ({ id: String(row.id), shopId: String(row.shop_id), shopName: row.shop_name, reviewerName: row.reviewer_name, rating: Number(row.rating), comment: row.comment, createdAt: row.created_at })));
+  } catch (e) { next(e); }
+});
+app.patch("/api/v1/admin/reviews/:id", auth, adminOnly, async (req, res, next) => {
+  if (!isId(req.params.id)) return sendError(res, 400, "INVALID_ID", "รหัสรีวิวไม่ถูกต้อง");
+  const allowed = ["reviewerName", "rating", "comment"];
+  if (!allowed.some((key) => Object.hasOwn(req.body, key))) return sendError(res, 422, "VALIDATION_ERROR", "ไม่มีข้อมูลที่ต้องแก้ไข");
+  const sets = [];
+  const params = [];
+  if (Object.hasOwn(req.body, "reviewerName")) {
+    const reviewerName = typeof req.body.reviewerName === "string" ? req.body.reviewerName.trim() : "";
+    if (!text(reviewerName, 1, 80)) return sendError(res, 422, "VALIDATION_ERROR", "ชื่อผู้รีวิวต้องมี 1-80 ตัวอักษร");
+    sets.push("reviewer_name=?"); params.push(reviewerName);
+  }
+  if (Object.hasOwn(req.body, "rating")) {
+    const rating = Number(req.body.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) return sendError(res, 422, "VALIDATION_ERROR", "คะแนนดาวต้องอยู่ระหว่าง 1 ถึง 5");
+    sets.push("rating=?"); params.push(rating);
+  }
+  if (Object.hasOwn(req.body, "comment")) {
+    const comment = typeof req.body.comment === "string" ? req.body.comment.trim() : null;
+    if (comment && comment.length > 1000) return sendError(res, 422, "VALIDATION_ERROR", "ความคิดเห็นยาวเกินกำหนด");
+    sets.push("comment=?"); params.push(comment || null);
+  }
+  params.push(req.params.id);
+  try {
+    const [result] = await pool.execute(`UPDATE shop_reviews SET ${sets.join(",")} WHERE id=?`, params);
+    if (!result.affectedRows) return sendError(res, 404, "NOT_FOUND", "ไม่พบรีวิวนี้");
+    sendData(res, { updated: true });
+  } catch (e) { next(e); }
+});
+app.delete("/api/v1/admin/reviews/:id", auth, adminOnly, async (req, res, next) => {
+  if (!isId(req.params.id)) return sendError(res, 400, "INVALID_ID", "รหัสรีวิวไม่ถูกต้อง");
+  try {
+    const [result] = await pool.execute("DELETE FROM shop_reviews WHERE id=?", [req.params.id]);
+    if (!result.affectedRows) return sendError(res, 404, "NOT_FOUND", "ไม่พบรีวิวนี้");
+    sendData(res, { deleted: true });
+  } catch (e) { next(e); }
+});
+
 app.get("/api/v1/admin/summary", auth, adminOnly, async (_req, res, next) => {
   try {
     const queries = [
@@ -654,4 +697,4 @@ app.use((error, _req, res, _next) => {
 });
 
 const port = Number(process.env.PORT) || 3109;
-app.listen(port, () => console.log(`Server listening on port ${port}`));
+app.listen(3109, () => console.log(`Server listening on port ${port}`));

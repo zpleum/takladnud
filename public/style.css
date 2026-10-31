@@ -70,6 +70,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 
 .icon-button { width: 40px; height: 40px; border: 1px solid var(--mist); border-radius: 50%; background: var(--white); font-size: 20px; }
 .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.admin-reviews-section { grid-column: 1 / -1; }
+.admin-reviews-table { min-width: 760px; }
+.admin-reviews-table input, .admin-reviews-table textarea, .admin-reviews-table select { width: 100%; min-height: 40px; }
+.admin-reviews-table textarea { resize: vertical; }
+.admin-review-actions { white-space: nowrap; }
+.admin-review-actions .button { min-height: 40px; margin-right: 6px; padding: 0 12px; }
 .table-wrap { overflow-x: auto; }
 .table-wrap table { width: 100%; border-collapse: collapse; }
 .table-wrap th, .table-wrap td { padding: 10px 12px; border-bottom: 1px solid var(--mist); text-align: left; }
