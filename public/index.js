@@ -504,8 +504,11 @@ async function loadMap(sessionId, publicMode = false) {
     const own = stall.ownBooking || stall.isMine;
     const name = stall.code || stall.stallCode || stall.stall_code || "แผง";
     const bookedShop = stall.shop?.name ? `<small>${escapeHtml(stall.shop.name)}</small>` : "";
+    const mapShopImage = publicMode && stall.shop?.profileImageUrl ? `<img class="map-shop-image" src="${escapeHtml(stall.shop.profileImageUrl)}" alt="">` : "";
+    const shopHover = publicMode && stall.shop ? `<span class="map-shop-hover" aria-hidden="true"><img src="${escapeHtml(stall.shop.profileImageUrl || "")}" alt=""><b>${escapeHtml(stall.shop.name)}</b></span>` : "";
     const style = hasCoordinates ? ` style="left:${Number(stall.x)}%;top:${Number(stall.y)}%;width:${Number(stall.width)}%;height:${Number(stall.height)}%"` : "";
-    return `<button class="map-stall ${availability === "booked" ? "booked" : ""} ${own ? "mine" : ""} ${!publicMode && state.selected.has(String(stall.id)) ? "selected" : ""}"${style} data-stall-id="${escapeHtml(stall.id)}" data-public-shop-id="${escapeHtml(stall.shop?.id || "")}" data-availability="${escapeHtml(availability)}" data-code="${escapeHtml(name)}" data-price="${Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)}" ${publicMode ? !stall.shop ? "disabled" : "" : availability !== "available" ? "disabled" : ""} aria-label="แผง ${escapeHtml(name)} ${stall.shop ? `ร้าน ${escapeHtml(stall.shop.name)}` : availability === "available" ? "ว่าง" : availability === "booked" ? "มีผู้จอง" : "ปิดใช้งาน"}"><strong>${escapeHtml(name)}</strong>${publicMode ? bookedShop : `<small>${availability === "available" ? money.format(Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)) : own ? "ร้านของฉัน" : "มีผู้จอง"}</small>`}</button>`;
+    const shopTitle = stall.shop?.name ? ` title="แผง ${escapeHtml(name)} · ${escapeHtml(stall.shop.name)}"` : "";
+    return `<button class="map-stall ${availability === "booked" ? "booked" : ""} ${own ? "mine" : ""} ${mapShopImage ? "has-shop-image" : ""} ${!publicMode && state.selected.has(String(stall.id)) ? "selected" : ""}"${style}${shopTitle} data-stall-id="${escapeHtml(stall.id)}" data-public-shop-id="${escapeHtml(stall.shop?.id || "")}" data-availability="${escapeHtml(availability)}" data-code="${escapeHtml(name)}" data-price="${Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)}" ${publicMode ? !stall.shop ? "disabled" : "" : availability !== "available" ? "disabled" : ""} aria-label="แผง ${escapeHtml(name)} ${stall.shop ? `ร้าน ${escapeHtml(stall.shop.name)}` : availability === "available" ? "ว่าง" : availability === "booked" ? "มีผู้จอง" : "ปิดใช้งาน"}">${mapShopImage}<strong>${escapeHtml(name)}</strong>${publicMode ? bookedShop : `<small>${availability === "available" ? money.format(Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)) : own ? "ร้านของฉัน" : "มีผู้จอง"}</small>`}${shopHover}</button>`;
   }).join("") : '<p class="empty-note">รอบนี้ยังไม่มีข้อมูลแผง</p>';
   map.style.backgroundImage = market.mapImage ? `url("${String(market.mapImage).replace(/["\\]/g, "")}")` : "";
   map.style.backgroundSize = "100% 100%";
@@ -625,6 +628,8 @@ async function loadProfile() {
     form.elements.namedItem("contactName").value = profile.contactName || "";
     form.elements.namedItem("contactPhone").value = profile.contactPhone || "";
     form.elements.namedItem("lineId").value = profile.lineId || "";
+    form.elements.namedItem("profileImageUrl").value = profile.profileImageUrl || "";
+    form.elements.namedItem("imageUrls").value = (profile.imageUrls || []).join("\n");
     form.elements.namedItem("isPublic").checked = profile.isPublic;
     const categories = new Set((profile.categories || []).map((item) => String(item.id)));
     byId("profile-categories").querySelectorAll('input[name="categoryIds"]').forEach((input) => { input.checked = categories.has(input.value); });
@@ -650,6 +655,8 @@ async function saveProfile(event) {
     contactName: String(data.get("contactName") || "").trim() || null,
     contactPhone: data.get("contactPhone"),
     lineId: String(data.get("lineId") || "").trim() || null,
+    profileImageUrl: String(data.get("profileImageUrl") || "").trim() || null,
+    imageUrls: String(data.get("imageUrls") || "").split(/\r?\n/).map((url) => url.trim()).filter(Boolean),
     isPublic: data.has("isPublic"),
     categoryIds: data.getAll("categoryIds"),
   };
@@ -658,19 +665,6 @@ async function saveProfile(event) {
   byId("profile-message").textContent = "กำลังบันทึก...";
   try {
     await request("/shop/profile", { method: "PATCH", body: JSON.stringify(payload) });
-    const file = byId("profile-logo").files[0];
-    if (file) {
-      const upload = new FormData();
-      upload.append("image", file);
-      const result = await request("/shop/logo", { method: "POST", body: upload });
-      const preview = byId("profile-logo-preview");
-      if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
-      preview.src = `${result.logoImage}?v=${Date.now()}`;
-      delete preview.dataset.previewUrl;
-      byId("profile-logo-preview").hidden = false;
-      byId("profile-logo-placeholder").hidden = true;
-      byId("profile-logo").value = "";
-    }
     const savedName = String(payload.name || "").trim();
     state.shop = { ...state.shop, name: savedName };
     document.querySelector(".account-copy b").textContent = savedName;
@@ -730,7 +724,24 @@ async function showPublicShop(button) {
     const contactActions = `${phone ? `<a class="shop-contact-button shop-phone-button" href="tel:${escapeHtml(phone)}">โทร ${escapeHtml(phone)}</a>` : "<span>ร้านนี้ยังไม่ได้ระบุเบอร์ติดต่อ</span>"}${lineLink ? `<a class="shop-contact-button shop-line-button" href="${escapeHtml(lineLink)}" target="_blank" rel="noopener noreferrer">แอดไลน์ ${escapeHtml(lineId)}</a>` : ""}`;
     const reviewList = reviews.reviews?.length ? reviews.reviews.map((review) => `<article class="shop-review-item"><div class="shop-review-head"><strong>${escapeHtml(review.reviewerName || "ผู้เยี่ยมชม")}</strong><span>${formatDate(review.createdAt)}</span></div><div class="review-stars" aria-label="${review.rating} จาก 5 ดาว">${"★".repeat(Number(review.rating))}<span>${"☆".repeat(5 - Number(review.rating))}</span></div>${review.comment ? `<p>${escapeHtml(review.comment)}</p>` : ""}</article>`).join("") : '<p class="empty-note">ยังไม่มีรีวิว เป็นคนแรกที่ให้คะแนนร้านนี้</p>';
     const stallCodesLabel = (shop.stallCodes?.length ? shop.stallCodes : (shop.stallCode ? [shop.stallCode] : [])).join(" · ");
-    panel.innerHTML = `<strong>${escapeHtml(shop.name)}</strong><p>${escapeHtml(shop.description || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>แผง ${escapeHtml(stallCodesLabel || "—")} · ${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")}</p><div class="shop-rating-summary"><span class="shop-rating-score">${reviews.count ? escapeHtml(String(reviews.average)) : "—"}</span><span><span class="review-stars">${"★".repeat(Math.round(Number(reviews.average) || 0))}<span>${"☆".repeat(5 - Math.round(Number(reviews.average) || 0))}</span></span><small>${reviews.count ? `จาก ${reviews.count} รีวิว` : "ยังไม่มีคะแนน"}</small></span></div><div class="shop-contact-actions">${contactActions}</div><section class="shop-reviews"><div class="shop-reviews-heading"><h3>รีวิวจากลูกค้า</h3></div><div class="shop-review-list">${reviewList}</div></section><form id="shop-review-form" class="shop-review-form"><h3>ให้คะแนนร้านนี้</h3><label>ชื่อ<input name="reviewerName" maxlength="80" value="ผู้เยี่ยมชม" required></label><fieldset class="star-rating"><legend>คะแนน</legend><div>${[5,4,3,2,1].map((rating) => `<input type="radio" name="rating" id="rating-${rating}" value="${rating}"${rating === 5 ? " checked" : ""}><label for="rating-${rating}" aria-label="${rating} ดาว">★</label>`).join("")}</div></fieldset><label>ความคิดเห็น<textarea name="comment" maxlength="1000" rows="3" placeholder="เล่าประสบการณ์ที่นี่ (ไม่บังคับ)"></textarea></label><button class="button button-outline" type="submit">ส่งรีวิว</button></form>`;
+    const profileImage = shop.profileImageUrl || shop.logoImage;
+    const profileHero = profileImage ? `<img class="shop-profile-image" src="${escapeHtml(profileImage)}" alt="รูปโปรไฟล์ ${escapeHtml(shop.name)}">` : "";
+    const galleryHtml = shop.imageUrls?.length ? `<div class="shop-photo-gallery" data-gallery-index="0">${shop.imageUrls.map((url, index) => `<img class="${index === 0 ? "active" : ""}" src="${escapeHtml(url)}" alt="รูปภาพร้าน ${escapeHtml(shop.name)} ${index + 1}/${shop.imageUrls.length}" loading="lazy">`).join("")}${shop.imageUrls.length > 1 ? `<button class="gallery-arrow gallery-prev" type="button" data-gallery-step="-1" aria-label="รูปก่อนหน้า">‹</button><button class="gallery-arrow gallery-next" type="button" data-gallery-step="1" aria-label="รูปถัดไป">›</button><div class="gallery-pagination" aria-label="เลือกดูรูปภาพ">${shop.imageUrls.map((_, index) => `<button class="${index === 0 ? "active" : ""}" type="button" data-gallery-index="${index}" aria-label="รูปที่ ${index + 1}">${index + 1}</button>`).join("")}</div>` : ""}</div>` : "";
+    panel.innerHTML = `${profileHero}<strong>${escapeHtml(shop.name)}</strong><p>${escapeHtml(shop.description || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>แผง ${escapeHtml(stallCodesLabel || "—")} · ${escapeHtml(shop.categories?.join(" · ") || "ร้านค้า")}</p>${galleryHtml}<div class="shop-rating-summary"><span class="shop-rating-score">${reviews.count ? escapeHtml(String(reviews.average)) : "—"}</span><span><span class="review-stars">${"★".repeat(Math.round(Number(reviews.average) || 0))}<span>${"☆".repeat(5 - Math.round(Number(reviews.average) || 0))}</span></span><small>${reviews.count ? `จาก ${reviews.count} รีวิว` : "ยังไม่มีคะแนน"}</small></span></div><div class="shop-contact-actions">${contactActions}</div><section class="shop-reviews"><div class="shop-reviews-heading"><h3>รีวิวจากลูกค้า</h3></div><div class="shop-review-list">${reviewList}</div></section><form id="shop-review-form" class="shop-review-form"><h3>ให้คะแนนร้านนี้</h3><label>ชื่อ<input name="reviewerName" maxlength="80" value="ผู้เยี่ยมชม" required></label><fieldset class="star-rating"><legend>คะแนน</legend><div>${[5,4,3,2,1].map((rating) => `<input type="radio" name="rating" id="rating-${rating}" value="${rating}"${rating === 5 ? " checked" : ""}><label for="rating-${rating}" aria-label="${rating} ดาว">★</label>`).join("")}</div></fieldset><label>ความคิดเห็น<textarea name="comment" maxlength="1000" rows="3" placeholder="เล่าประสบการณ์ที่นี่ (ไม่บังคับ)"></textarea></label><button class="button button-outline" type="submit">ส่งรีวิว</button></form>`;
+    panel.querySelectorAll("[data-gallery-step], .gallery-pagination [data-gallery-index]").forEach((control) => {
+      control.addEventListener("click", () => {
+        const gallery = control.closest(".shop-photo-gallery");
+        const images = [...gallery.querySelectorAll(":scope > img")];
+        const pageButtons = [...gallery.querySelectorAll(".gallery-pagination button")];
+        const current = Number(gallery.dataset.galleryIndex || 0);
+        const next = control.dataset.galleryIndex != null
+          ? Number(control.dataset.galleryIndex)
+          : (current + Number(control.dataset.galleryStep) + images.length) % images.length;
+        gallery.dataset.galleryIndex = String(next);
+        images.forEach((image, index) => image.classList.toggle("active", index === next));
+        pageButtons.forEach((button, index) => button.classList.toggle("active", index === next));
+      });
+    });
     byId("shop-review-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
@@ -869,7 +880,25 @@ function renderPreview() {
   const f = byId("profile-form"), v = (n) => f.elements.namedItem(n).value.trim();
   const cats = [...byId("profile-categories").querySelectorAll("input:checked")].map((i) => i.nextElementSibling.textContent).join(" · ") || "ยังไม่ได้เลือกประเภท";
   const pub = f.elements.namedItem("isPublic").checked;
-  byId("profile-preview").innerHTML = `<strong>${escapeHtml(v("name") || "ชื่อร้านของคุณ")}</strong><p>${escapeHtml(v("description") || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>${escapeHtml(cats)}</p><p>${pub ? (v("contactPhone") ? `โทร ${escapeHtml(v("contactPhone"))}` : "ยังไม่ได้ระบุเบอร์ติดต่อ") : "ปิดการแสดงผล: ลูกค้าจะไม่เห็นร้านนี้ในแผนผัง"}</p>`;
+  const profileImage = v("profileImageUrl");
+  const gallery = v("imageUrls").split(/\r?\n/).map((url) => url.trim()).filter(Boolean).slice(0, 20);
+  const profileHero = profileImage ? `<img class="shop-profile-image" src="${escapeHtml(profileImage)}" alt="รูปโปรไฟล์ ${escapeHtml(v("name") || "ร้าน")}">` : "";
+  const galleryHtml = gallery.length ? `<div class="shop-photo-gallery" data-gallery-index="0">${gallery.map((url, index) => `<img class="${index === 0 ? "active" : ""}" src="${escapeHtml(url)}" alt="รูปภาพร้าน ${escapeHtml(v("name") || "")} ${index + 1}/${gallery.length}" loading="lazy">`).join("")}${gallery.length > 1 ? `<button class="gallery-arrow gallery-prev" type="button" data-gallery-step="-1" aria-label="รูปก่อนหน้า">‹</button><button class="gallery-arrow gallery-next" type="button" data-gallery-step="1" aria-label="รูปถัดไป">›</button><div class="gallery-pagination" aria-label="เลือกดูรูปภาพ">${gallery.map((_, index) => `<button class="${index === 0 ? "active" : ""}" type="button" data-gallery-index="${index}" aria-label="รูปที่ ${index + 1}">${index + 1}</button>`).join("")}</div>` : ""}</div>` : "";
+  byId("profile-preview").innerHTML = `${profileHero}<strong>${escapeHtml(v("name") || "ชื่อร้านของคุณ")}</strong><p>${escapeHtml(v("description") || "ร้านนี้ยังไม่ได้เพิ่มคำแนะนำ")}</p><p>${escapeHtml(cats)}</p>${galleryHtml}<p>${pub ? (v("contactPhone") ? `โทร ${escapeHtml(v("contactPhone"))}` : "ยังไม่ได้ระบุเบอร์ติดต่อ") : "ปิดการแสดงผล: ลูกค้าจะไม่เห็นร้านนี้ในแผนผัง"}</p>`;
+  byId("profile-preview").querySelectorAll("[data-gallery-step], .gallery-pagination [data-gallery-index]").forEach((control) => {
+    control.addEventListener("click", () => {
+      const galleryElement = control.closest(".shop-photo-gallery");
+      const images = [...galleryElement.querySelectorAll(":scope > img")];
+      const pageButtons = [...galleryElement.querySelectorAll(".gallery-pagination button")];
+      const current = Number(galleryElement.dataset.galleryIndex || 0);
+      const next = control.dataset.galleryIndex != null
+        ? Number(control.dataset.galleryIndex)
+        : (current + Number(control.dataset.galleryStep) + images.length) % images.length;
+      galleryElement.dataset.galleryIndex = String(next);
+      images.forEach((image, index) => image.classList.toggle("active", index === next));
+      pageButtons.forEach((button, index) => button.classList.toggle("active", index === next));
+    });
+  });
 }
 
 function bindExtra() {
@@ -941,15 +970,12 @@ function bindEvents() {
   byId("auth-form").addEventListener("submit", submitAuth);
   byId("profile-form").addEventListener("submit", saveProfile);
   byId("logout-button").addEventListener("click", async () => { if (await askConfirm("ออกจากระบบหรือไม่?", "ออกจากระบบ")) logout(); });
-  byId("profile-logo").addEventListener("change", (event) => {
-    const file = event.currentTarget.files[0];
-    if (!file) return;
+  byId("profile-form").elements.namedItem("profileImageUrl").addEventListener("input", (event) => {
     const preview = byId("profile-logo-preview");
-    if (preview.dataset.previewUrl) URL.revokeObjectURL(preview.dataset.previewUrl);
-    preview.src = URL.createObjectURL(file);
-    preview.dataset.previewUrl = preview.src;
-    preview.hidden = false;
-    byId("profile-logo-placeholder").hidden = true;
+    preview.src = event.currentTarget.value.trim();
+    preview.hidden = !event.currentTarget.value.trim();
+    byId("profile-logo-placeholder").hidden = Boolean(event.currentTarget.value.trim());
+    renderPreview();
   });
   byId("public-shop-list").addEventListener("click", (event) => {
     const card = event.target.closest("[data-public-shop-id]");

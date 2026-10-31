@@ -169,10 +169,9 @@
             <div class="profile-logo">
               <img id="profile-logo-preview" src="data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=" alt="โลโก้ร้าน" hidden>
               <span id="profile-logo-placeholder" aria-hidden="true">ต</span>
-              <label class="button button-outline" for="profile-logo">เลือกโลโก้</label>
-              <input id="profile-logo" type="file" accept="image/png,image/jpeg,image/gif,image/webp">
-              <small>PNG, JPEG, GIF หรือ WebP ขนาดไม่เกิน 5 MB</small>
             </div>
+            <label>รูปโปรไฟล์ร้าน (URL)<input name="profileImageUrl" type="url" maxlength="2048" placeholder="https://example.com/shop-profile.jpg"></label>
+            <label>รูปภาพร้านหลายรูป (URL อย่างละ 1 บรรทัด)<textarea name="imageUrls" rows="4" maxlength="40960" placeholder="https://example.com/shop-1.jpg&#10;https://example.com/shop-2.jpg"></textarea></label>
             <label>ชื่อร้าน<input name="name" required maxlength="120" autocomplete="organization"></label>
             <label>แนะนำร้าน<textarea name="description" rows="4" maxlength="5000"></textarea></label>
             <div class="profile-fields">
