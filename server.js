@@ -1,6 +1,4 @@
 const express = require("express");
-const dotenv = require("dotenv");
-dotenv.config();
 const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -11,11 +9,11 @@ const QRCode = require("qrcode");
 
 const app = express();
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: "10.200.210.117",
+  port: 3306,
+  user: "std09",
+  password: "std09",
+  database: "db_std09",
   waitForConnections: true,
   connectionLimit: 10,
   charset: "utf8mb4",
@@ -26,6 +24,7 @@ const SESSION_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 const loginAttempts = new Map();
 const publicAttempts = new Map();
 const imageDirectory = path.join(__dirname, "public", "images");
+const publicDirectory = path.join(__dirname, "public");
 const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 const schema = [
   `CREATE TABLE IF NOT EXISTS users (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, email VARCHAR(254) NOT NULL, phone VARCHAR(20) NULL, password_hash VARCHAR(255) NOT NULL, role ENUM('shop','customer','admin') NOT NULL DEFAULT 'shop', status ENUM('active','disabled') NOT NULL DEFAULT 'active', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_users_email (email), UNIQUE KEY uq_users_phone (phone)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -67,7 +66,7 @@ app.use((req, res, next) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return sendError(res, 400, "INVALID_BODY", "รูปแบบข้อมูลคำขอไม่ถูกต้อง");
   next();
 });
-app.use(express.static("public"));
+app.use(express.static(publicDirectory));
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api/v1/public/") && !allowPublicRequest(req.ip)) return sendError(res, 429, "RATE_LIMITED", "มีการเรียกดูข้อมูลบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
   if (req.path.startsWith("/api/") && req.path !== "/api/v1/health") {
@@ -698,5 +697,5 @@ app.use((error, _req, res, _next) => {
   sendError(res, 500, "INTERNAL_ERROR", "ระบบขัดข้อง กรุณาลองใหม่ภายหลัง");
 });
 
-const port = process.env.PORT || 3109;
+const port = Number(process.env.PORT) || 3109;
 app.listen(3109, () => console.log(`Server listening on port ${port}`));
