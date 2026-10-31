@@ -1,4 +1,5 @@
 const express = require("express");
+require("dotenv").config();
 const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -9,11 +10,11 @@ const QRCode = require("qrcode");
 
 const app = express();
 const pool = mysql.createPool({
-  host: "10.200.210.117",
-  port: 3306,
-  user: "std09",
-  password: "std09",
-  database: "db_std09",
+  host: process.env.DB_HOST || "10.200.210.117",
+  port: Number(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER || "std09",
+  password: process.env.DB_PASSWORD || "std09",
+  database: process.env.DB_NAME || "db_std09",
   waitForConnections: true,
   connectionLimit: 10,
   charset: "utf8mb4",
@@ -59,7 +60,7 @@ function ensureSchema() {
 }
 
 app.disable("x-powered-by");
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static("public"));
 app.use(express.json({ limit: "100kb" }));
 app.use((req, res, next) => {
   if (req.body === undefined) req.body = {};
