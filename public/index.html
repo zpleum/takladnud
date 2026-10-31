@@ -23,8 +23,8 @@
       <a class="nav-link" href="#profile" data-view="profile">โปรไฟล์ร้าน</a>
     </nav>
     <div class="top-actions">
-      <span class="market-live"><i></i> เปิดรับจอง</span>
-      <button class="account-button" id="account-button" type="button" aria-label="เปิดเมนูบัญชี"><span class="avatar">ร</span><span class="account-copy"><b>ร้านของฉัน</b><small>บัญชีร้านค้า</small></span><span aria-hidden="true">⌄</span></button>
+      <span class="market-live"><i></i><span id="market-live-label">กำลังโหลดข้อมูลตลาด...</span></span>
+      <button class="account-button" id="account-button" type="button" aria-label="เปิดเมนูบัญชี"><span class="avatar" id="account-avatar" aria-hidden="true">ผ</span><span class="account-copy"><b id="account-name">ผู้เยี่ยมชม</b><small id="account-role">ยังไม่ได้เข้าสู่ระบบ</small></span><span aria-hidden="true">⌄</span></button>
     </div>
   </header>
 
@@ -41,9 +41,9 @@
       <section class="market-banner" aria-label="ข้อมูลตลาด">
         <div class="banner-art" aria-hidden="true"><span class="lantern lantern-one"></span><span class="lantern lantern-two"></span><span class="banner-orbit"></span><span class="banner-stall"></span></div>
         <div class="banner-content">
-          <div class="banner-kicker"><span class="status-pill"><i></i> รอบถัดไป</span><span class="banner-date" id="banner-date">กำลังโหลดรอบตลาด...</span></div>
-          <h2 id="banner-market-name">ตลาดตัวอย่าง</h2>
-          <p><span aria-hidden="true">◷</span> <span id="banner-time">—</span> <span class="banner-divider">·</span> <span aria-hidden="true">⌖</span> <span id="banner-address">ข้อมูลตัวอย่าง เริ่มต้นแก้ไขได้ที่ผู้ดูแลตลาด</span></p>
+          <div class="banner-kicker"><span class="status-pill"><i></i> <span id="banner-status">กำลังโหลดข้อมูลตลาด...</span></span><span class="banner-date" id="banner-date">—</span></div>
+          <h2 id="banner-market-name">กำลังโหลดข้อมูลตลาด...</h2>
+          <p><span aria-hidden="true">◷</span> <span id="banner-time">—</span> <span class="banner-divider">·</span> <span aria-hidden="true">⌖</span> <span id="banner-address">—</span></p>
         </div>
         <div class="banner-side"><span>เหลือเวลาอีก</span><strong id="banner-countdown">—</strong><span class="banner-side-label">ก่อนตลาดเปิด</span></div>
       </section>
@@ -61,12 +61,10 @@
             <button class="text-button" type="button" data-action="navigate" data-target="stalls">ดูผังเต็ม <span aria-hidden="true">↗</span></button>
           </div>
           <div class="map-legend" aria-label="คำอธิบายสัญลักษณ์"><span><i class="legend-free"></i> ว่าง</span><span><i class="legend-mine"></i> ร้านของฉัน</span><span><i class="legend-taken"></i> มีร้านแล้ว</span></div>
-          <div class="mini-map" role="img" aria-label="ตัวอย่างแผนผังตลาด แสดงแผงว่างและแผงที่จองแล้ว">
-            <div class="map-water"><span>คลองชุมชน</span></div><div class="map-walkway">ทางเดินหลัก</div>
-            <div class="map-stalls" id="mini-stalls"></div>
-            <span class="map-north">N ↑</span><span class="map-gate"><span>ทางเข้า</span> ⇢</span>
+          <div class="mini-map" id="mini-map" role="img" aria-label="แผนผังตลาด">
+            <div class="map-stalls" id="mini-stalls"><span class="empty-note">กำลังโหลดข้อมูลแผง...</span></div>
           </div>
-          <div class="map-foot"><span><i class="pin-dot"></i> <span id="home-map-summary">ผังตัวอย่าง</span></span><span id="home-map-updated">ข้อมูลตัวอย่าง</span></div>
+          <div class="map-foot"><span><i class="pin-dot"></i> <span id="home-map-summary">กำลังโหลดข้อมูล...</span></span><span id="home-map-updated">—</span></div>
         </section>
 
         <section class="panel booking-panel" aria-labelledby="booking-heading">

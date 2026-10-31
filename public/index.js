@@ -97,9 +97,26 @@ function navFromHash() {
 
 function renderMiniStalls(stalls = []) {
   const container = byId("mini-stalls");
+  const hasCoordinates = stalls.length > 0 && stalls.every((stall) => {
+    const values = [stall.x, stall.y, stall.width, stall.height].map(Number);
+    return [stall.x, stall.y, stall.width, stall.height].every((value) => value != null && value !== "")
+      && values.every(Number.isFinite)
+      && values[0] >= 0 && values[0] <= 100
+      && values[1] >= 0 && values[1] <= 100
+      && values[2] > 0 && values[2] <= 100
+      && values[3] > 0 && values[3] <= 100
+      && values[0] + values[2] <= 100
+      && values[1] + values[3] <= 100;
+  });
+  container.classList.toggle("stall-list-mode", !hasCoordinates);
   container.innerHTML = stalls.length
-    ? stalls.slice(0, 24).map((stall) => `<span class="stall-chip ${stall.availability === "booked" ? "taken" : ""}">${escapeHtml(stall.code || stall.stall_code || "แผง")}</span>`).join("")
-    : '<span class="empty-note">กำลังโหลดผังตลาด...</span>';
+    ? stalls.slice(0, 24).map((stall) => {
+      const style = hasCoordinates ? ` style="left:${Number(stall.x)}%;top:${Number(stall.y)}%;width:${Number(stall.width)}%;height:${Number(stall.height)}%"` : "";
+      const name = stall.code || stall.stallCode || stall.stall_code || "ไม่ระบุรหัส";
+      return `<span class="stall-chip ${stall.availability === "booked" ? "taken" : ""} ${stall.ownBooking ? "mine" : ""}"${style}>${escapeHtml(name)}</span>`;
+    }).join("")
+    : '<span class="empty-note">ยังไม่มีข้อมูลแผงในรอบนี้</span>';
+  byId("mini-map").setAttribute("aria-label", hasCoordinates ? "แผนผังย่อพร้อมตำแหน่งแผงจากข้อมูลตลาด" : "รายการรหัสแผงจากข้อมูลตลาด");
 }
 
 function renderBookings(bookings = []) {
@@ -118,18 +135,18 @@ async function logout() {
   state.user = null;
   state.shop = null;
   state.csrfToken = "";
-  document.querySelector(".account-copy b").textContent = "ร้านของฉัน";
-  document.querySelector(".account-copy small").textContent = "เข้าสู่ระบบ";
-  document.querySelector(".avatar").textContent = "ร";
+  byId("account-name").textContent = "ผู้เยี่ยมชม";
+  byId("account-role").textContent = "ยังไม่ได้เข้าสู่ระบบ";
+  byId("account-avatar").textContent = "ผ";
   state.pendingPage = "";
   toast("ออกจากระบบแล้ว");
   setPage("home");
 }
 
 function formatDate(value) {
-  if (!value) return "วันที่ตามรอบตลาด";
+  if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? "วันที่ตามรอบตลาด" : new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric" }).format(date);
+  return Number.isNaN(date.valueOf()) ? "—" : new Intl.DateTimeFormat("th-TH", { day: "numeric", month: "short", year: "numeric" }).format(date);
 }
 
 function formatTime(value) {
@@ -139,15 +156,50 @@ function formatTime(value) {
 }
 
 function updateMarketBanner(market, session) {
-  byId("banner-market-name").textContent = market.name || "ตลาด";
-  byId("banner-address").textContent = market.address || market.description || "ดูข้อมูลตลาด";
+  const now = new Date();
+  const opensAt = session.bookingOpensAt ? new Date(session.bookingOpensAt) : null;
+  const closesAt = session.bookingClosesAt ? new Date(session.bookingClosesAt) : null;
+  const acceptingBookings = session.status === "open"
+    && (!opensAt || now >= opensAt)
+    && (!closesAt || now <= closesAt);
+  byId("banner-status").textContent = acceptingBookings ? "เปิดรับจอง" : "ปิดรับจอง";
+  byId("market-live-label").textContent = acceptingBookings ? "เปิดรับจอง" : "ปิดรับจอง";
+  document.querySelector(".market-live").classList.toggle("closed", !acceptingBookings);
+  byId("banner-market-name").textContent = market.name || "ไม่มีชื่อตลาด";
+  byId("banner-address").textContent = market.address || "—";
   byId("banner-date").textContent = formatDate(session.startsAt);
   byId("banner-time").textContent = `${formatTime(session.startsAt)}–${formatTime(session.endsAt)}`;
   const startsAt = new Date(session.startsAt);
   const days = Number.isNaN(startsAt.valueOf()) ? null : Math.max(0, Math.floor((startsAt - Date.now()) / 86400000));
   byId("banner-countdown").innerHTML = days == null ? "—" : `${days} <small>วัน</small>`;
   byId("home-map-summary").textContent = `${market.name || "ตลาด"} · ${state.stalls.length} แผง`;
-  byId("home-map-updated").textContent = market.description || "ผังตลาด";
+  byId("home-map-updated").textContent = market.description || "—";
+}
+
+function clearMarketData(message = "ยังไม่มีข้อมูลตลาดที่เปิดให้บริการ") {
+  state.market = null;
+  state.sessionId = "";
+  state.stalls = [];
+  byId("banner-status").textContent = message;
+  byId("market-live-label").textContent = "ไม่มีข้อมูลตลาด";
+  document.querySelector(".market-live").classList.add("closed");
+  byId("banner-market-name").textContent = message;
+  byId("banner-date").textContent = "—";
+  byId("banner-time").textContent = "—";
+  byId("banner-address").textContent = "—";
+  byId("banner-countdown").textContent = "—";
+  byId("home-map-summary").textContent = message;
+  byId("home-map-updated").textContent = "—";
+  document.querySelectorAll(".stat-card strong").forEach((item, index) => {
+    if (index < 2) item.textContent = "—";
+  });
+  byId("full-map").classList.add("stall-list-mode");
+  byId("full-map").style.backgroundImage = "none";
+  byId("full-map").innerHTML = `<p class="empty-note">${escapeHtml(message)}</p>`;
+  byId("mini-map").style.backgroundImage = "none";
+  byId("stall-map-title").textContent = "แผนผังแผงร้านค้า";
+  byId("map-message").textContent = message;
+  renderMiniStalls();
 }
 
 function statusLabel(status) {
@@ -176,7 +228,6 @@ async function loadBookings() {
     if (byId("booking-session-filter").value) query.set("sessionId", byId("booking-session-filter").value);
     const result = await request(`/bookings?${query}`);
     const list = result.data || [];
-    if (state.paginationMeta) state.totalBookings = state.paginationMeta.total;
     if (state.page > state.totalPages) {
       state.page = state.totalPages || 1;
       if (state.page !== Number(query.get("page"))) return loadBookings();
@@ -194,8 +245,15 @@ async function loadDashboard() {
   try {
     const result = await request("/shop/dashboard");
     state.shop = result?.shop || state.shop;
-    if (result?.shop?.name) document.querySelector(".account-copy b").textContent = result.shop.name;
-    if (result?.confirmedCount != null) document.querySelectorAll(".stat-card strong")[2].textContent = String(result.confirmedCount);
+    if (result?.shop?.name) {
+      byId("account-name").textContent = result.shop.name;
+      byId("account-avatar").textContent = result.shop.name.slice(0, 1);
+      byId("account-role").textContent = "บัญชีร้านค้า";
+    }
+    if (result?.confirmedCount != null) {
+      state.totalBookings = Number(result.confirmedCount);
+      document.querySelectorAll(".stat-card strong")[2].textContent = String(result.confirmedCount);
+    }
     if (result?.recentBookings) renderBookings(result.recentBookings);
   } catch (error) {
     if (error.status === 401) { state.user = null; return; }
@@ -207,15 +265,17 @@ async function loadSessions(selectId, publicMode = false) {
   const select = byId(selectId);
   try {
     const marketResponse = await fetch(`${API}/markets?page=1&limit=20`);
-    if (!marketResponse.ok) throw new Error("ยังไม่มีข้อมูลตลาดในระบบ");
-    const markets = (await marketResponse.json()).data;
+    const marketPayload = await marketResponse.json().catch(() => ({}));
+    if (!marketResponse.ok) throw new Error(marketPayload.error?.message || "โหลดข้อมูลตลาดไม่สำเร็จ");
+    const markets = marketPayload.data;
     const marketList = markets || [];
-    if (!marketList.length) throw new Error("ยังไม่มีข้อมูลตลาดในระบบ");
+    if (!marketList.length) throw new Error("ยังไม่มีตลาดที่เปิดให้บริการ");
     const market = marketList[0];
     state.market = market;
     const sessionResponse = await fetch(`${API}/markets/${encodeURIComponent(market.id)}/sessions?from=${encodeURIComponent(new Date().toISOString().slice(0, 10))}`);
-    if (!sessionResponse.ok) throw new Error("ยังไม่มีรอบตลาดที่เปิดให้แสดง");
-    const sessions = (await sessionResponse.json()).data;
+    const sessionPayload = await sessionResponse.json().catch(() => ({}));
+    if (!sessionResponse.ok) throw new Error(sessionPayload.error?.message || "โหลดรอบตลาดไม่สำเร็จ");
+    const sessions = sessionPayload.data;
     const list = sessions || [];
     state.sessions = list;
     if (!list.length) throw new Error("ยังไม่มีรอบตลาดที่เปิดให้แสดง");
@@ -236,6 +296,7 @@ async function loadSessions(selectId, publicMode = false) {
     return list;
   } catch (error) {
     select.innerHTML = `<option value="">${escapeHtml(error.message)}</option>`;
+    state.sessions = [];
     return [];
   }
 }
@@ -253,34 +314,53 @@ async function loadMap(sessionId, publicMode = false) {
   const mapId = publicMode ? "public-map" : "full-map";
   const map = byId(mapId);
   map.style.display = "block";
-  map.innerHTML = stalls.map((stall) => {
+  const hasCoordinates = stalls.length > 0 && stalls.every((stall) => {
+    const values = [stall.x, stall.y, stall.width, stall.height].map(Number);
+    return [stall.x, stall.y, stall.width, stall.height].every((value) => value != null && value !== "")
+      && values.every(Number.isFinite)
+      && values[0] >= 0 && values[0] <= 100
+      && values[1] >= 0 && values[1] <= 100
+      && values[2] > 0 && values[2] <= 100
+      && values[3] > 0 && values[3] <= 100
+      && values[0] + values[2] <= 100
+      && values[1] + values[3] <= 100;
+  });
+  map.classList.toggle("stall-list-mode", !hasCoordinates);
+  map.innerHTML = stalls.length ? stalls.map((stall) => {
     const availability = stall.availability || "available";
     const own = stall.ownBooking || stall.isMine;
     const name = stall.code || stall.stallCode || stall.stall_code || "แผง";
     const bookedShop = stall.shop?.name ? `<small>${escapeHtml(stall.shop.name)}</small>` : "";
-    return `<button class="map-stall ${availability === "booked" ? "booked" : ""} ${own ? "mine" : ""} ${!publicMode && state.selected.has(String(stall.id)) ? "selected" : ""}" style="left:${Number(stall.x ?? 0)}%;top:${Number(stall.y ?? 0)}%;width:${Math.max(4, Number(stall.width ?? 6))}%;height:${Math.max(5, Number(stall.height ?? 7))}%" data-stall-id="${escapeHtml(stall.id)}" data-public-shop-id="${escapeHtml(stall.shop?.id || "")}" data-availability="${escapeHtml(availability)}" data-code="${escapeHtml(name)}" data-price="${Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)}" ${publicMode ? !stall.shop ? "disabled" : "" : availability !== "available" ? "disabled" : ""} aria-label="แผง ${escapeHtml(name)} ${stall.shop ? `ร้าน ${escapeHtml(stall.shop.name)}` : availability === "available" ? "ว่าง" : availability === "booked" ? "มีผู้จอง" : "ปิดใช้งาน"}"><strong>${escapeHtml(name)}</strong>${publicMode ? bookedShop : `<small>${availability === "available" ? money.format(Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)) : own ? "ร้านของฉัน" : "มีผู้จอง"}</small>`}</button>`;
-  }).join("");
-  if (market.mapImage) map.style.backgroundImage = `linear-gradient(#10221d55,#10221d55),url("${String(market.mapImage).replace(/["\\]/g, "")}")`;
+    const style = hasCoordinates ? ` style="left:${Number(stall.x)}%;top:${Number(stall.y)}%;width:${Number(stall.width)}%;height:${Number(stall.height)}%"` : "";
+    return `<button class="map-stall ${availability === "booked" ? "booked" : ""} ${own ? "mine" : ""} ${!publicMode && state.selected.has(String(stall.id)) ? "selected" : ""}"${style} data-stall-id="${escapeHtml(stall.id)}" data-public-shop-id="${escapeHtml(stall.shop?.id || "")}" data-availability="${escapeHtml(availability)}" data-code="${escapeHtml(name)}" data-price="${Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)}" ${publicMode ? !stall.shop ? "disabled" : "" : availability !== "available" ? "disabled" : ""} aria-label="แผง ${escapeHtml(name)} ${stall.shop ? `ร้าน ${escapeHtml(stall.shop.name)}` : availability === "available" ? "ว่าง" : availability === "booked" ? "มีผู้จอง" : "ปิดใช้งาน"}"><strong>${escapeHtml(name)}</strong>${publicMode ? bookedShop : `<small>${availability === "available" ? money.format(Number(stall.price ?? stall.basePrice ?? stall.base_price ?? 0)) : own ? "ร้านของฉัน" : "มีผู้จอง"}</small>`}</button>`;
+  }).join("") : '<p class="empty-note">รอบนี้ยังไม่มีข้อมูลแผง</p>';
+  map.style.backgroundImage = market.mapImage ? `url("${String(market.mapImage).replace(/["\\]/g, "")}")` : "";
   map.style.backgroundSize = "100% 100%";
   map.style.backgroundRepeat = "no-repeat";
   const title = publicMode ? byId("public-map-title") : byId("stall-map-title");
-  title.textContent = `${market.name || "ตลาด"} · ${session.name || "แผนผังแผง"}`;
+  title.textContent = `${market.name || "ไม่มีชื่อ"} · ${session.name || "รอบตลาด"}`;
   if (!publicMode) {
     const available = stalls.filter((item) => item.availability === "available").length;
     updateMarketBanner(market, session);
     document.querySelectorAll(".stat-card strong")[0].textContent = String(stalls.length);
     document.querySelectorAll(".stat-card strong")[1].textContent = String(available);
-    document.querySelectorAll(".stat-card strong")[2].textContent = String(state.totalBookings);
+    document.querySelectorAll(".stat-card strong")[2].textContent = state.user ? String(state.totalBookings) : "—";
     renderMiniStalls(stalls);
+    const miniMap = byId("mini-map");
+    miniMap.style.backgroundImage = market.mapImage ? `url("${String(market.mapImage).replace(/["\\]/g, "")}")` : "";
   }
   return data;
 }
 
 async function loadMarketData() {
   const sessions = await loadSessions("session-select");
-  if (!sessions.length) return;
+  if (!sessions.length) {
+    clearMarketData(byId("session-select").options[0]?.textContent || "ยังไม่มีรอบตลาดที่เปิดให้แสดง");
+    return;
+  }
   state.sessionId = byId("session-select").value;
-  try { await loadMap(state.sessionId); } catch (error) { byId("map-message").textContent = error.message; }
+  try { await loadMap(state.sessionId); }
+  catch (error) { clearMarketData(error.message); }
 }
 
 function renderSelection() {
@@ -294,7 +374,15 @@ function renderSelection() {
 
 async function loadPublicMarket() {
   const sessions = await loadSessions("public-session-select", true);
-  if (!sessions.length) return;
+  if (!sessions.length) {
+    byId("public-map").innerHTML = `<p class="empty-note">${escapeHtml(byId("public-session-select").options[0]?.textContent || "ยังไม่มีรอบตลาดที่เปิดให้แสดง")}</p>`;
+    byId("public-map").classList.add("stall-list-mode");
+    byId("public-map").style.backgroundImage = "none";
+    byId("public-map-title").textContent = "ไม่มีข้อมูลรอบตลาด";
+    byId("public-shop-count").textContent = "—";
+    byId("public-shop-list").innerHTML = '<p class="empty-note">ยังไม่มีข้อมูลร้านค้าให้แสดง</p>';
+    return;
+  }
   state.publicSessionId = byId("public-session-select").value;
   await refreshPublic();
 }
@@ -443,9 +531,10 @@ async function submitAuth(event) {
     state.user = user.user || user;
     state.shop = user.shop || null;
     authDialog.close();
-    document.querySelector(".account-copy b").textContent = state.shop?.name || payload.shopName || "ร้านของฉัน";
-    document.querySelector(".account-copy small").textContent = "บัญชีร้านค้า";
-    document.querySelector(".avatar").textContent = (state.shop?.name || payload.shopName || "ร").slice(0, 1);
+    const shopName = state.shop?.name || payload.shopName || "ยังไม่มีชื่อร้าน";
+    byId("account-name").textContent = shopName;
+    byId("account-role").textContent = "บัญชีร้านค้า";
+    byId("account-avatar").textContent = shopName.slice(0, 1);
     toast(register ? "สมัครร้านค้าสำเร็จ" : "เข้าสู่ระบบสำเร็จ");
     await loadDashboard();
     await loadBookings();
@@ -607,8 +696,7 @@ function bindEvents() {
 
 async function start() {
   bindEvents();
-  renderMiniStalls();
-  renderBookings([]);
+  byId("recent-bookings").innerHTML = '<p class="empty-note">เข้าสู่ระบบเพื่อดูการจองของร้าน</p>';
   navFromHash();
   try {
     const health = await fetch(`${API}/health`);
@@ -624,11 +712,17 @@ async function start() {
     state.user = data.user || data;
     state.shop = data.shop || null;
     state.csrfToken = data.csrfToken || "";
-    if (state.shop?.name) document.querySelector(".account-copy b").textContent = state.shop.name;
-    document.querySelector(".avatar").textContent = (state.shop?.name || "ร").slice(0, 1);
+    if (state.shop?.name) {
+      byId("account-name").textContent = state.shop.name;
+      byId("account-role").textContent = "บัญชีร้านค้า";
+      byId("account-avatar").textContent = state.shop.name.slice(0, 1);
+    }
   } catch (error) {
     state.user = null;
-    document.querySelectorAll(".stat-card strong")[2].textContent = "0";
+    byId("account-name").textContent = "ผู้เยี่ยมชม";
+    byId("account-role").textContent = "ยังไม่ได้เข้าสู่ระบบ";
+    byId("account-avatar").textContent = "ผ";
+    document.querySelectorAll(".stat-card strong")[2].textContent = "—";
     if (error.status !== 401) showHealth(false, "ตรวจสอบบัญชีไม่สำเร็จ กรุณาโหลดหน้าใหม่");
   }
   loadCategories();

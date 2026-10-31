@@ -49,61 +49,12 @@ function ensureSchema() {
       for (const statement of schema) await connection.query(statement);
       const [phoneIndex] = await connection.query("SHOW INDEX FROM users WHERE Key_name='uq_users_phone'");
       if (!phoneIndex.length) await connection.query("ALTER TABLE users ADD UNIQUE KEY uq_users_phone (phone)");
-      await seedMarketDemo(connection);
+      // Retire the known bootstrap demo without deleting related market or booking records.
+      await connection.execute("UPDATE markets SET status='inactive' WHERE name=? AND description=? AND status='active'", ["ตลาดเย็นริมคลอง (ตัวอย่าง)", "ข้อมูลตัวอย่างสำหรับเริ่มต้นใช้งาน"]);
     }
     finally { connection.release(); }
   })().catch((error) => { schemaReady = null; throw error; });
   return schemaReady;
-}
-
-async function seedMarketDemo(connection) {
-  const startsAt = "2026-11-08 16:00:00";
-  const endsAt = "2026-11-08 22:00:00";
-  const bookingOpensAt = "2026-10-31 00:00:00";
-  const bookingClosesAt = "2026-11-08 15:00:00";
-  if (new Date(endsAt) <= new Date(startsAt) || new Date(bookingOpensAt) >= new Date(bookingClosesAt) || new Date(bookingClosesAt) > new Date(startsAt)) {
-    throw new Error("Invalid demo market schedule");
-  }
-  await connection.beginTransaction();
-  try {
-    const [markets] = await connection.execute("SELECT id FROM markets WHERE name IN (?,?) ORDER BY id LIMIT 1 FOR UPDATE", ["ตลาดเย็นริมคลอง", "ตลาดเย็นริมคลอง (ตัวอย่าง)"]);
-    let marketId;
-    if (markets.length) {
-      marketId = markets[0].id;
-      await connection.execute("UPDATE markets SET name='ตลาดเย็นริมคลอง (ตัวอย่าง)',description='ข้อมูลตัวอย่างสำหรับเริ่มต้นใช้งาน',address='ลานชุมชนริมคลอง (ตัวอย่าง)',map_image='market-map.svg',map_width=1200,map_height=800 WHERE id=? AND description='ตลาดชุมชนและร้านค้าท้องถิ่น'", [marketId]);
-    } else {
-      const [market] = await connection.execute("INSERT INTO markets (name,description,address,map_image,map_width,map_height,status) VALUES (?,?,?,?,1200,800,'active')", ["ตลาดเย็นริมคลอง (ตัวอย่าง)", "ข้อมูลตัวอย่างสำหรับเริ่มต้นใช้งาน", "ลานชุมชนริมคลอง (ตัวอย่าง)", "market-map.svg"]);
-      marketId = market.insertId;
-    }
-    const [sessions] = await connection.execute("SELECT id FROM market_sessions WHERE market_id=? AND starts_at=? AND ends_at=? ORDER BY id LIMIT 1 FOR UPDATE", [marketId, startsAt, endsAt]);
-    let sessionId;
-    if (sessions.length) {
-      sessionId = sessions[0].id;
-    } else {
-      const [session] = await connection.execute("INSERT INTO market_sessions (market_id,name,starts_at,ends_at,booking_opens_at,booking_closes_at,status) VALUES (?,?,?,?,?,?,'open')", [marketId, "ตลาดเย็นวันอาทิตย์", startsAt, endsAt, bookingOpensAt, bookingClosesAt]);
-      sessionId = session.insertId;
-    }
-    for (let row = 0; row < 6; row += 1) {
-      for (let column = 0; column < 8; column += 1) {
-        const code = `A-${String(row * 8 + column + 1).padStart(2, "0")}`;
-        const x = 7 + column * 11.8;
-        const y = 13 + row * 14;
-        const width = 8;
-        const height = 9;
-        const price = 100;
-        if (![x, y, width, height].every((value) => Number.isFinite(value) && value >= 0 && value <= 100) || x + width > 100 || y + height > 100 || !Number.isFinite(price) || price < 0) {
-          throw new Error(`Invalid demo stall layout: ${code}`);
-        }
-        await connection.execute("INSERT IGNORE INTO stalls (market_id,stall_code,name,x_percent,y_percent,width_percent,height_percent,base_price,status) VALUES (?,?,?,?,?,?,?,?, 'active')", [marketId, code, `แผง ${code}`, x, y, width, height, price]);
-      }
-    }
-    const categories = ["อาหาร", "เครื่องดื่ม", "ขนม", "งานฝีมือ", "เสื้อผ้า", "ของใช้"];
-    for (const name of categories) await connection.execute("INSERT IGNORE INTO categories (name) VALUES (?)", [name]);
-    await connection.commit();
-  } catch (error) {
-    await rollbackTransaction(connection);
-    throw error;
-  }
 }
 
 app.disable("x-powered-by");
@@ -314,8 +265,8 @@ app.get("/api/v1/markets/:marketId/sessions", async (req, res, next) => {
     const filter = "market_id=? AND status IN ('open','closed') AND (? IS NULL OR ends_at>=?) AND (? IS NULL OR starts_at<DATE_ADD(?, INTERVAL 1 DAY)) AND EXISTS (SELECT 1 FROM markets m WHERE m.id=market_sessions.market_id AND m.status='active')";
     const params = [req.params.marketId, req.query.from || null, req.query.from || null, req.query.to || null, req.query.to || null];
     const [[count]] = await pool.execute(`SELECT COUNT(*) AS total FROM market_sessions WHERE ${filter}`, params);
-    const [rows] = await pool.execute(`SELECT id,name,starts_at,ends_at,status FROM market_sessions WHERE ${filter} ORDER BY starts_at,id LIMIT ? OFFSET ?`, [...params, limit, offset]);
-    res.json({ data: rows.map((r) => ({ id: String(r.id), name: r.name, startsAt: r.starts_at, endsAt: r.ends_at, status: r.status })), meta: pagination(page, limit, count.total) });
+    const [rows] = await pool.execute(`SELECT id,name,starts_at,ends_at,booking_opens_at,booking_closes_at,status FROM market_sessions WHERE ${filter} ORDER BY starts_at,id LIMIT ? OFFSET ?`, [...params, limit, offset]);
+    res.json({ data: rows.map((r) => ({ id: String(r.id), name: r.name, startsAt: r.starts_at, endsAt: r.ends_at, bookingOpensAt: r.booking_opens_at, bookingClosesAt: r.booking_closes_at, status: r.status })), meta: pagination(page, limit, count.total) });
   } catch (e) { next(e); }
 });
 app.get("/api/v1/sessions/:sessionId/map", async (req, res, next) => {
@@ -332,7 +283,7 @@ app.get("/api/v1/sessions/:sessionId/map", async (req, res, next) => {
     }
     const categoryId = req.query.categoryId || null;
     const [stalls] = await pool.execute("SELECT st.id,st.stall_code,st.name,st.description,st.x_percent,st.y_percent,st.width_percent,st.height_percent,st.base_price,st.status,b.shop_id,sh.name AS shop_name,sh.is_public,CASE WHEN ? IS NULL OR EXISTS (SELECT 1 FROM shop_categories sc WHERE sc.shop_id=b.shop_id AND sc.category_id=?) THEN 1 ELSE 0 END AS category_match FROM stalls st LEFT JOIN bookings b ON b.stall_id=st.id AND b.session_id=? AND b.status IN ('pending','confirmed') LEFT JOIN shops sh ON sh.id=b.shop_id WHERE st.market_id=? ORDER BY st.stall_code", [categoryId, categoryId, req.params.sessionId, session.market_id]);
-    const data = { session: { id: String(session.id), name: session.name, startsAt: session.starts_at, endsAt: session.ends_at, status: session.status }, market: { id: String(session.market_id), name: session.market_name, description: session.market_description, address: session.market_address, mapImage: session.map_image ? `/images/${encodeURIComponent(session.map_image)}` : null, mapWidth: session.map_width, mapHeight: session.map_height }, stalls: stalls.map((st) => ({ id: String(st.id), code: st.stall_code, name: st.name, description: user?.shopId ? st.description : undefined, x: st.x_percent == null ? null : Number(st.x_percent), y: st.y_percent == null ? null : Number(st.y_percent), width: st.width_percent == null ? null : Number(st.width_percent), height: st.height_percent == null ? null : Number(st.height_percent), price: user?.shopId ? Number(st.base_price || 0) : undefined, availability: st.status !== "active" ? "inactive" : st.shop_id ? "booked" : "available", ownBooking: Boolean(user?.shopId && String(st.shop_id) === user.shopId), shop: st.shop_id && st.is_public && st.category_match ? { id: String(st.shop_id), name: st.shop_name } : null })) };
+    const data = { session: { id: String(session.id), name: session.name, startsAt: session.starts_at, endsAt: session.ends_at, bookingOpensAt: session.booking_opens_at, bookingClosesAt: session.booking_closes_at, status: session.status }, market: { id: String(session.market_id), name: session.market_name, description: session.market_description, address: session.market_address, mapImage: session.map_image ? `/images/${encodeURIComponent(session.map_image)}` : null, mapWidth: session.map_width, mapHeight: session.map_height }, stalls: stalls.map((st) => ({ id: String(st.id), code: st.stall_code, name: st.name, description: user?.shopId ? st.description : undefined, x: st.x_percent == null ? null : Number(st.x_percent), y: st.y_percent == null ? null : Number(st.y_percent), width: st.width_percent == null ? null : Number(st.width_percent), height: st.height_percent == null ? null : Number(st.height_percent), price: user?.shopId ? Number(st.base_price || 0) : undefined, availability: st.status !== "active" ? "inactive" : st.shop_id ? "booked" : "available", ownBooking: Boolean(user?.shopId && String(st.shop_id) === user.shopId), shop: st.shop_id && st.is_public && st.category_match ? { id: String(st.shop_id), name: st.shop_name } : null })) };
     sendData(res, data);
   } catch (e) { next(e); }
 });
