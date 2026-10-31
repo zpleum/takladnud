@@ -10,11 +10,11 @@ const QRCode = require("qrcode");
 
 const app = express();
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || "10.200.210.117",
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || "std09",
-  password: process.env.DB_PASSWORD || "std09",
-  database: process.env.DB_NAME || "db_std09",
+  host: "10.200.210.117",
+  port: 3306,
+  user: "std09",
+  password: "std09",
+  database: "db_std09",
   waitForConnections: true,
   connectionLimit: 10,
   charset: "utf8mb4",
@@ -697,5 +697,4 @@ app.use((error, _req, res, _next) => {
   sendError(res, 500, "INTERNAL_ERROR", "ระบบขัดข้อง กรุณาลองใหม่ภายหลัง");
 });
 
-const port = Number(process.env.PORT) || 3109;
 app.listen(3109, () => console.log(`Server listening on port ${port}`));
