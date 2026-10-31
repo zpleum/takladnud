@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
+require("dotenv").config();
 const mysql = require("mysql2/promise");
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
@@ -26,7 +27,6 @@ const SESSION_AGE_MS = 1000 * 60 * 60 * 24 * 7;
 const loginAttempts = new Map();
 const publicAttempts = new Map();
 const imageDirectory = path.join(__dirname, "public", "images");
-const publicDirectory = path.join(__dirname, "public");
 const logoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } });
 const schema = [
   `CREATE TABLE IF NOT EXISTS users (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, email VARCHAR(254) NOT NULL, phone VARCHAR(20) NULL, password_hash VARCHAR(255) NOT NULL, role ENUM('shop','customer','admin') NOT NULL DEFAULT 'shop', status ENUM('active','disabled') NOT NULL DEFAULT 'active', created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), UNIQUE KEY uq_users_email (email), UNIQUE KEY uq_users_phone (phone)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
@@ -68,7 +68,7 @@ app.use((req, res, next) => {
   if (!req.body || typeof req.body !== "object" || Array.isArray(req.body)) return sendError(res, 400, "INVALID_BODY", "รูปแบบข้อมูลคำขอไม่ถูกต้อง");
   next();
 });
-app.use(express.static(publicDirectory));
+app.use(express.static(path.join(__dirname, "public")));
 app.use(async (req, res, next) => {
   if (req.path.startsWith("/api/v1/public/") && !allowPublicRequest(req.ip)) return sendError(res, 429, "RATE_LIMITED", "มีการเรียกดูข้อมูลบ่อยเกินไป กรุณาลองใหม่ภายหลัง");
   if (req.path.startsWith("/api/") && req.path !== "/api/v1/health") {
